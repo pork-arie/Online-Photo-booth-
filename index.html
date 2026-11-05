@@ -358,6 +358,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   </section>
 </main>
 
+<script src="config.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 (() => {
@@ -1245,13 +1246,35 @@ h1.display em { font-style: normal; color: var(--accent); }
   const PREFIX = "flashbulb-live-";
   const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
   const genCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
-  let peer = null, conn = null, call = null, code = "", busy = false;
-  function peerOptions() {
-    const o = { debug: 0, config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] } };
-    if (params.get("turn")) o.config.iceServers.push({ urls: params.get("turn"), username: params.get("turnuser") || "", credential: params.get("turnpass") || "" });
+  let peer = null, conn = null, call = null, code = "", busy = false, leaving = false, reconnectTries = 0;
+  // Connection settings come from config.js (relay server, own PeerJS server); link parameters override them for testing.
+  const CFG = window.FLASHBULB_CONFIG || {};
+  let iceCache = null;
+  async function iceServers() {
+    if (iceCache) return iceCache;
+    const list = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+    (Array.isArray(CFG.iceServers) ? CFG.iceServers : []).forEach((x) => { if (x && x.urls) list.push(x); });
+    if (params.get("turn")) list.push({ urls: params.get("turn"), username: params.get("turnuser") || "", credential: params.get("turnpass") || "" });
+    if (CFG.turnCredentialsUrl) {
+      try {
+        const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
+        const r = await fetch(CFG.turnCredentialsUrl, { signal: ctl.signal }); clearTimeout(t);
+        const extra = await r.json();
+        if (Array.isArray(extra)) extra.forEach((x) => { if (x && x.urls) list.push(x); });
+      } catch (e) { /* relay unavailable: direct connections still work on most Wi-Fi */ }
+    }
+    iceCache = list; return list;
+  }
+  const hasRelay = () => (iceCache || []).some((x) => [].concat(x.urls).some((u) => /^turns?:/.test(u)));
+  async function peerOptions() {
+    const o = { debug: 0, config: { iceServers: await iceServers() } }, ps = CFG.peerServer;
     if (params.get("peerhost")) { o.host = params.get("peerhost"); o.port = +(params.get("peerport") || 443); o.path = params.get("peerpath") || "/"; o.secure = params.get("peersecure") !== "0"; }
+    else if (ps && ps.host) { o.host = ps.host; o.port = +(ps.port || 443); o.path = ps.path || "/"; o.secure = ps.secure !== false; if (ps.key) o.key = ps.key; }
     return o;
   }
+  const serviceTrouble = (t) => t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed";
+  // Keep the link to the connection service alive if it drops for a moment.
+  function keepAlive(p) { p.on("disconnected", () => { if (!leaving && !p.destroyed) setTimeout(() => { try { if (p.disconnected && !p.destroyed) p.reconnect(); } catch (e) {} }, 1500); }); }
   function enterBooth() {
     $("lobby").hidden = true; $("booth").hidden = false;
     state.duo = !solo; poseFor = solo ? "solo" : "duo";
@@ -1277,20 +1300,25 @@ h1.display em { font-style: normal; color: var(--accent); }
     busyBtns(true); lobbyNote("Starting your camera…");
     try { localStream = startPipeline(await openCamera()); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
     mySide = "A"; code = genCode();
+    const opts = await peerOptions();
     const tryOpen = (attempt) => {
-      peer = new Peer(PREFIX + code, peerOptions());
-      peer.on("open", () => { enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
-      peer.on("error", (e) => {
-        if (e.type === "unavailable-id" && attempt < 3) { peer.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
-        if (e.type === "network" || e.type === "server-error" || e.type === "socket-error") { setPill("", "Offline"); (($("booth").hidden) ? lobbyNote : setStatus)("Lost the connection to the booth service. Check your internet.", true); busyBtns(false); return; }
+      const p = peer = new Peer(PREFIX + code, opts); keepAlive(p);
+      p.on("open", () => { if (!$("booth").hidden) return; enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
+      p.on("error", (e) => {
+        if (e.type === "unavailable-id" && attempt < 3) { p.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
+        if (serviceTrouble(e.type) && !p.open && attempt < 3) { // the connection service is busy: try again
+          lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
+        }
+        if (serviceTrouble(e.type)) { if ($("booth").hidden) { lobbyNote("Couldn't reach the booth service. Check your internet and try again.", true); busyBtns(false); } else setPill("wait", "Reconnecting"); return; }
         if (e.type !== "peer-unavailable") setStatus("Connection problem: " + e.type, true);
       });
-      peer.on("connection", (c) => {
+      p.on("connection", (c) => {
         if (conn && conn.open) { c.on("open", () => { c.send({ t: "full" }); setTimeout(() => c.close(), 500); }); return; }
         wireConn(c);
       });
-      peer.on("call", (cl) => {
-        if (call && call.open) { cl.close(); return; }
+      p.on("call", (cl) => {
+        if (call && call.open && conn && conn.open) { cl.close(); return; }
+        if (call && call !== cl) { try { call.close(); } catch (e) {} } // a returning partner replaces the old video link
         call = cl; cl.answer(localStream); wireCall(cl);
       });
     };
@@ -1302,41 +1330,74 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
     busyBtns(true); lobbyNote("Starting your camera…");
     try { localStream = startPipeline(await openCamera()); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
-    mySide = "B"; code = c;
-    peer = new Peer(peerOptions());
-    peer.on("open", () => {
-      lobbyNote("Connecting to your partner…");
-      const dc = peer.connect(PREFIX + code, { reliable: true });
-      wireConn(dc);
-      call = peer.call(PREFIX + code, localStream); wireCall(call);
-      const t = setTimeout(() => { if (!conn || !conn.open) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
-      dc.on("open", () => { clearTimeout(t); enterBooth(); });
-    });
-    peer.on("error", (e) => {
-      if (e.type === "peer-unavailable") { lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return; }
-      ((($("booth").hidden) ? lobbyNote : setStatus))("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false);
-    });
+    mySide = "B"; code = c; leaving = false;
+    const opts = await peerOptions();
+    const tryOpen = (attempt) => {
+      const p = peer = new Peer(opts); keepAlive(p);
+      p.on("open", () => {
+        if (!$("booth").hidden) return;
+        lobbyNote("Connecting to your partner…");
+        const dc = guestConnect();
+        const t = setTimeout(() => { if ($("booth").hidden && (!conn || !conn.open)) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
+        dc.on("open", () => { clearTimeout(t); if ($("booth").hidden) enterBooth(); });
+      });
+      p.on("error", (e) => {
+        if (e.type === "peer-unavailable") {
+          if (!$("booth").hidden) return; // reconnecting: keep trying quietly
+          lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return;
+        }
+        if (serviceTrouble(e.type) && !p.open && attempt < 3 && $("booth").hidden) {
+          lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
+        }
+        if ($("booth").hidden) { lobbyNote("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false); }
+      });
+    };
+    tryOpen(0);
+  }
+  function guestConnect() {
+    const dc = peer.connect(PREFIX + code, { reliable: true });
+    wireConn(dc);
+    if (call) { try { call.close(); } catch (e) {} }
+    call = peer.call(PREFIX + code, localStream); wireCall(call);
+    return dc;
+  }
+  // If the link to the partner drops, the person who joined calls back automatically.
+  function scheduleReconnect() {
+    if (leaving || mySide !== "B") return;
+    if (reconnectTries >= 10) { setPill("wait", "Disconnected"); setStatus("Lost the connection to your partner. Tap Leave and join again.", true); return; }
+    reconnectTries++;
+    setPill("wait", "Reconnecting"); setStatus(`Connection lost. Reconnecting… (try ${reconnectTries})`);
+    setTimeout(() => {
+      if (leaving || (conn && conn.open)) return;
+      try { if (peer.disconnected && !peer.destroyed) peer.reconnect(); } catch (e) {}
+      guestConnect();
+      setTimeout(() => { if (!leaving && (!conn || !conn.open)) scheduleReconnect(); }, 5000);
+    }, 1500);
   }
   function wireCall(cl) {
     cl.on("stream", (s) => showRemote(s));
-    cl.on("close", () => clearRemote("Your partner's video stopped."));
-    cl.on("error", () => setStatus("The video connection dropped. Try Leave and join again.", true));
+    cl.on("close", () => { if (call === cl) { call = null; clearRemote("Your partner's video stopped."); } });
+    cl.on("error", () => setStatus("The video connection dropped. Reconnecting…", true));
     const pc = cl.peerConnection;
     if (pc) pc.addEventListener("iceconnectionstatechange", () => {
-      if (pc.iceConnectionState === "failed") setStatus("Couldn't connect your videos directly. Try both of you on Wi-Fi.", true);
+      if (pc.iceConnectionState === "failed") setStatus(hasRelay() ? "The video connection failed. Reconnecting…" : "Couldn't connect your videos directly. Try both of you on Wi-Fi, or add a relay server (see the README).", true);
     });
   }
   function wireConn(c) {
     conn = c;
     c.on("open", () => {
       setPill("on", "Connected"); $("shootBtn").disabled = false;
-      setStatus(mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
+      setStatus(reconnectTries ? "Reconnected!" : mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
+      reconnectTries = 0;
       if (mySide === "A") send({ t: "settings", s: settingsPayload() });
       send({ t: "facing", user: facing === "user" });
     });
     c.on("data", onData);
     c.on("close", () => {
-      if (conn === c) { conn = null; setPill("wait", "Partner left"); $("shootBtn").disabled = true; clearRemote("Your partner left. They can join again with the same code."); setStatus("Your partner left the booth."); }
+      if (conn !== c) return;
+      conn = null; $("shootBtn").disabled = true;
+      if (mySide === "B" && !leaving) { clearRemote("Reconnecting to your partner…"); scheduleReconnect(); return; }
+      setPill("wait", "Partner left"); clearRemote("Your partner left. They can join again with the same code."); setStatus("Your partner left the booth. They can rejoin with the same code.");
     });
   }
   function send(m) { if (conn && conn.open) { try { conn.send(m); } catch (e) { setStatus("Couldn't send to your partner.", true); } } }
@@ -1470,6 +1531,7 @@ h1.display em { font-style: normal; color: var(--accent); }
 
   /* ---------- leave ---------- */
   function stopAll() {
+    leaving = true;
     try { if (call) call.close(); } catch {} try { if (conn) conn.close(); } catch {} try { if (peer) peer.destroy(); } catch {}
     call = conn = peer = null;
     if (localStream) localStream.getTracks().forEach((t) => t.stop()); localStream = null;
@@ -1477,6 +1539,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     cancelAnimationFrame(fxRaf);
   }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
+  if (params.get("test") === "1") window.__fbTest = { drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
   window.addEventListener("pagehide", stopAll);
 
   $("soloBtn").addEventListener("click", startSolo);

@@ -69,7 +69,7 @@ async function makeFaceVideo(browser) {
     p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(name + ' console: ' + m.text()); });
     return p;
   };
-  const q = '?peerhost=localhost&peerport=9000&peersecure=0&peerpath=/&nosw=1';
+  const q = '?peerhost=localhost&peerport=9000&peersecure=0&peerpath=/&nosw=1&test=1';
   const A = await mk('A', { width: 1280, height: 900 });
   await A.goto('http://localhost:8080/index.html' + q); await A.waitForTimeout(500);
   await A.screenshot({ path: OUT + '/lobby.png' });
@@ -148,6 +148,15 @@ async function makeFaceVideo(browser) {
   const dl = A.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await A.click('#saveBtn'); const d = await dl;
   check('Save print downloads a file', !!d, d ? d.suggestedFilename() : '');
+  // connection drops: the partner reconnects on their own
+  await B.evaluate(() => window.__fbTest.drop());
+  await B.waitForFunction(() => document.getElementById('pillText').textContent === 'Reconnecting', null, { timeout: 5000 }).catch(() => {});
+  const sawReconnecting = (await B.textContent('#status')).includes('Reconnecting');
+  await B.waitForFunction(() => document.getElementById('pillText').textContent === 'Connected', null, { timeout: 25000 }).catch(() => {});
+  await A.waitForFunction(() => document.getElementById('pillText').textContent === 'Connected', null, { timeout: 10000 }).catch(() => {});
+  check('Dropped connection reconnects by itself', sawReconnecting && (await B.textContent('#pillText')) === 'Connected' && (await A.textContent('#pillText')) === 'Connected', await B.textContent('#status'));
+  await A.waitForFunction(() => { const v = document.getElementById('vidB'); return v.srcObject && v.videoWidth > 0; }, null, { timeout: 15000 }).catch(() => {});
+  check('Video comes back after reconnecting', await A.evaluate(() => { const v = document.getElementById('vidB'); return !!v.srcObject && v.videoWidth > 0; }));
   // partner leaves
   await B.click('#leaveBtn'); await A.waitForTimeout(1500);
   check('Host is told partner left', (await A.textContent('#pillText')) === 'Partner left');
