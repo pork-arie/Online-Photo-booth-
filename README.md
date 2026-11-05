@@ -30,6 +30,19 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 
 After you've opened the booth once, **Just me** and **Use my photos** keep working with no internet. On your phone, use **Add to Home Screen** (Safari) or **Install app** (Chrome) to keep Flashbulb on your home screen. **Together** still needs internet, because it connects two phones.
 
+## Face stickers
+
+Pick a sticker under the camera and it follows your face as you move, like the filters in photo booth apps. It also tracks more than one face in the frame.
+
+👑 Crown · 🐶 Puppy · 🐱 Kitty · 🕶️ Shades · 😍 In love · 🥳 Party · 🎅 Santa hat · 🌸 Flowers · 💫 Dizzy · 😊 Blush
+
+- **Animated live:** the puppy's tongue wiggles, hearts float up, confetti falls and stars circle your head.
+- **In your photos:** stickers are part of every shot on the print.
+- **Seen by your partner:** in Together, your partner sees your stickers live, and you each pick your own.
+- **Private:** face tracking runs on your phone with [face-api](https://github.com/vladmandic/face-api) (MIT license). No video is uploaded, and it works offline.
+
+![Puppy sticker following a face](docs/stickers.png)
+
 ## Features
 
 - **Layouts:** Strip (4 shots), Grid (2 × 2) or Instant (1 big shot). In Together, you and your partner are side by side in every frame.
@@ -66,6 +79,7 @@ Any other static host works too, for example Netlify or Cloudflare Pages. The wh
 | `index.html` | The main booth: start page, Just me and Together (HTML, CSS and JavaScript in one file) |
 | `solo/index.html` | Use my photos: build a strip from photos you already have, with the same layouts, looks, seasons and poses |
 | `sw.js` | Keeps the booth working offline after the first visit |
+| `vendor/face-api/` | Face tracking for the stickers ([face-api](https://github.com/vladmandic/face-api), MIT license) and its two small models |
 | `manifest.webmanifest`, `icons/` | Lets phones install the booth like an app |
 | `tests/` | End-to-end test for both booths |
 | `docs/` | Screenshots used in this README |
@@ -110,6 +124,7 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that the phone layout doesn't scroll sideways
 - Just me: the camera, pose list and swapping, 4 shots, and saving
 - offline: the booth, Just me and Use my photos open with no internet
+- face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - Use my photos: the home page, adding a photo, saving, and the links between pages
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

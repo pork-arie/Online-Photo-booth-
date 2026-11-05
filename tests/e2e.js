@@ -20,6 +20,40 @@ const web = http.createServer((req, res) => {
 // Local PeerJS connection server on :9000 instead of the public cloud one.
 const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
 
+// Builds a short fake-camera video (.y4m) from the test photo, with the face drifting left and right.
+async function makeFaceVideo(browser) {
+  const file = path.join(OUT, 'face.y4m');
+  if (fs.existsSync(file)) return file;
+  const W = 480, H = 360, N = 24;
+  const p = await browser.newPage();
+  const jpg = 'data:image/jpeg;base64,' + fs.readFileSync(path.join(__dirname, 'fixtures', 'astronaut.jpg')).toString('base64');
+  const frames = await p.evaluate(async ({ jpg, W, H, N }) => {
+    const im = new Image(); im.src = jpg; await im.decode();
+    const c = document.createElement('canvas'); c.width = W; c.height = H; const g = c.getContext('2d'); const out = [];
+    for (let k = 0; k < N; k++) {
+      g.fillStyle = '#7a7d82'; g.fillRect(0, 0, W, H);
+      const dx = Math.round(45 * Math.sin(2 * Math.PI * k / N)), sw = 220 * 1.4, sh = 240 * 1.4;
+      g.drawImage(im, 140, 0, 220, 240, (W - sw) / 2 + dx, 20, sw, sh); // zoom in on the face
+      const d = g.getImageData(0, 0, W, H).data, y = new Uint8Array(W * H), u = new Uint8Array(W * H / 4), v = new Uint8Array(W * H / 4);
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) { const o = (j * W + i) * 4; y[j * W + i] = Math.max(0, Math.min(255, 0.299 * d[o] + 0.587 * d[o + 1] + 0.114 * d[o + 2])); }
+      for (let j = 0; j < H / 2; j++) for (let i = 0; i < W / 2; i++) {
+        const o = ((j * 2) * W + i * 2) * 4, r = d[o], gg = d[o + 1], bb = d[o + 2];
+        u[j * W / 2 + i] = Math.max(0, Math.min(255, 128 - 0.168736 * r - 0.331264 * gg + 0.5 * bb));
+        v[j * W / 2 + i] = Math.max(0, Math.min(255, 128 + 0.5 * r - 0.418688 * gg - 0.081312 * bb));
+      }
+      const all = new Uint8Array(y.length + u.length + v.length); all.set(y); all.set(u, y.length); all.set(v, y.length + u.length);
+      let bin = ''; for (let i = 0; i < all.length; i += 0x8000) bin += String.fromCharCode.apply(null, all.subarray(i, i + 0x8000));
+      out.push(btoa(bin));
+    }
+    return out;
+  }, { jpg, W, H, N });
+  await p.close();
+  const parts = [Buffer.from(`YUV4MPEG2 W${W} H${H} F12:1 Ip A1:1 C420jpeg\n`)];
+  frames.forEach((f) => { parts.push(Buffer.from('FRAME\n')); parts.push(Buffer.from(f, 'base64')); });
+  fs.writeFileSync(file, Buffer.concat(parts));
+  return file;
+}
+
 (async () => {
   const b = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
   const peerjs = fs.readFileSync(require.resolve('peerjs/dist/peerjs.min.js'));
@@ -44,6 +78,7 @@ const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
   await A.waitForSelector('#booth:not([hidden])', { timeout: 15000 });
   const code = (await A.textContent('#codeChip')).trim();
   check('Host opens a booth with a code', /^[A-Z0-9]{6}$/.test(code), code);
+  await A.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
   check('Host sees own camera', await A.evaluate(() => document.getElementById('vidA').videoWidth > 0));
 
   const B = await mk('B', { width: 390, height: 844 });
@@ -164,6 +199,64 @@ const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
   await O.goto('http://localhost:8080/solo/').catch(() => {}); await O.waitForTimeout(600);
   check('Offline: Use my photos still opens', await O.isVisible('#homeView'));
   await O.context().setOffline(false);
+  // ---- face stickers, with a real face as the fake camera ----
+  const y4m = await makeFaceVideo(b);
+  const fb = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-video-capture=' + y4m, '--autoplay-policy=no-user-gesture-required'] });
+  const mkF = async (name) => {
+    const ctx = await fb.newContext({ viewport: { width: 1280, height: 900 }, permissions: ['camera', 'microphone'] });
+    await ctx.route('https://unpkg.com/**', (r) => r.fulfill({ body: peerjs, contentType: 'application/javascript' }));
+    await ctx.route('https://fonts.googleapis.com/**', (r) => r.fulfill({ body: '', contentType: 'text/css' }));
+    const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(name + ': ' + e.message)); return p;
+  };
+  // brown puppy-ear pixels in a video element, and where they are
+  const ears = (p, id) => p.evaluate((id) => {
+    const v = document.getElementById(id); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight;
+    if (!c.width) return { n: 0, x: 0 };
+    const g = c.getContext('2d'); g.drawImage(v, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0, sx = 0;
+    for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 122) < 22 && Math.abs(d[i + 1] - 74) < 22 && Math.abs(d[i + 2] - 36) < 22) { n++; sx += (i / 4) % c.width; }
+    return { n, x: n ? sx / n : 0 };
+  }, id);
+  const F = await mkF('Faces');
+  await F.goto('http://localhost:8080/index.html' + q); await F.click('#soloBtn');
+  await F.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 15000 });
+  check('Face stickers row shows 11 choices', (await F.locator('#fxBar .fx').count()) === 11);
+  const before = await ears(F, 'vidA');
+  await F.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
+  await F.waitForFunction(() => +(document.getElementById('stage').dataset.faces || 0) > 0, null, { timeout: 30000 }).catch(() => {});
+  check('Finds the face in the camera', +(await F.evaluate(() => document.getElementById('stage').dataset.faces || 0)) > 0, await F.textContent('#status'));
+  await F.waitForTimeout(800);
+  const e1 = await ears(F, 'vidA');
+  check('Puppy ears appear on the live camera', e1.n > before.n + 1000, `${before.n} -> ${e1.n} brown pixels`);
+  let moved = 0; for (let k = 0; k < 6; k++) { await F.waitForTimeout(450); const e2 = await ears(F, 'vidA'); moved = Math.max(moved, Math.abs(e2.x - e1.x)); }
+  check('Stickers follow the face as it moves', moved > 8, `moved ${Math.round(moved)}px`);
+  let flicker = 0, extra = 0; for (let k = 0; k < 10; k++) { await F.waitForTimeout(300); const n = (await ears(F, 'vidA')).n; if (n < before.n + 1000) flicker++; if (+(await F.evaluate(() => document.getElementById('stage').dataset.faces)) > 1) extra++; }
+  check('Stickers stay on steadily (no flicker, no phantom faces)', flicker <= 1 && extra === 0, `${flicker}/10 missing, ${extra}/10 extra faces`);
+  for (const name of ['Crown', 'Kitty', 'Shades', 'In love', 'Party', 'Santa hat', 'Flowers', 'Dizzy', 'Blush']) { await F.locator('#fxBar .fx', { hasText: name }).click(); await F.waitForTimeout(250); }
+  check('Every sticker draws without errors', !errs.some((x) => x.startsWith('Faces')));
+  await F.locator('#fxBar .fx', { hasText: 'Santa hat' }).click(); await F.waitForTimeout(600);
+  await F.screenshot({ path: OUT + '/stickers-santa.png' });
+  await F.locator('#fxBar .fx', { hasText: 'Puppy' }).click(); await F.waitForTimeout(600);
+  await F.screenshot({ path: OUT + '/stickers-puppy.png' });
+  await F.locator('#layouts .chip', { hasText: 'Instant' }).click();
+  await F.click('#shootBtn'); await F.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 20000 });
+  const printEars = await F.evaluate(() => { const c = document.getElementById('strip'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 122) < 30 && Math.abs(d[i + 1] - 74) < 30 && Math.abs(d[i + 2] - 36) < 30) n++; return n; });
+  check('The photo on the print has the stickers', printEars > 300, `${printEars} brown pixels`);
+  await F.locator('#strip').screenshot({ path: OUT + '/stickers-print.png' });
+  // partner sees your stickers in Together
+  const H = await mkF('FaceHost'); await H.goto('http://localhost:8080/index.html' + q);
+  await H.click('#startBtn'); await H.waitForSelector('#booth:not([hidden])', { timeout: 15000 });
+  await H.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
+  const fcode = (await H.textContent('#codeChip')).trim();
+  const G = await mkF('FaceGuest'); await G.goto('http://localhost:8080/index.html' + q + '&join=' + fcode); await G.click('#joinBtn');
+  await G.waitForSelector('#booth:not([hidden])', { timeout: 20000 });
+  await G.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 20000 }).catch(() => {});
+  await H.waitForFunction(() => +(document.getElementById('stage').dataset.faces || 0) > 0, null, { timeout: 30000 }).catch(() => {});
+  await G.waitForTimeout(2500);
+  const own = await ears(G, 'vidB'); let seen = { n: 0 };
+  for (let k = 0; k < 5; k++) { const x = await ears(G, 'vidA'); if (x.n > seen.n) seen = x; await G.waitForTimeout(500); } // video over the connection is compressed, so take the clearest frame
+  check("Partner sees your stickers live", seen.n > own.n + 700, `${seen.n} brown pixels in your video on their screen vs ${own.n} in theirs (no sticker)`);
+  await fb.close();
+
   check('No JavaScript errors', errs.length === 0, errs.join(' | ').slice(0, 400));
   console.log(results.join('\n')); await b.close();
   web.close(); signal.close && signal.close();

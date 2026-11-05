@@ -1,9 +1,12 @@
 // Keeps Flashbulb working offline after the first visit.
 // Pages are fetched from the network first (so updates arrive) and fall back to the saved copy.
-const CACHE = "flashbulb-v1";
+const CACHE = "flashbulb-v2";
 const CORE = [
   "./", "./index.html", "./solo/", "./solo/index.html",
   "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png",
+  "./vendor/face-api/face-api.js",
+  "./vendor/face-api/models/tiny_face_detector_model-weights_manifest.json", "./vendor/face-api/models/tiny_face_detector_model.bin",
+  "./vendor/face-api/models/face_landmark_68_tiny_model-weights_manifest.json", "./vendor/face-api/models/face_landmark_68_tiny_model.bin",
 ];
 const EXTRA = ["https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"]; // only needed for Together, so never wait on it
 
