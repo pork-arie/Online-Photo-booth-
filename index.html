@@ -1,0 +1,913 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flashbulb Live</title>
+<meta name="description" content="A live photo booth for two: see each other, pose together, and get one printed strip.">
+<meta name="theme-color" content="#F3F4F2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Urbanist:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: one live stage (two cameras side by side) with the booth controls beside it; stacks on phones with the stage first. */
+:root {
+  --bg: #F3F4F2; --surface: #FFFFFF; --sunk: #E9EBE8; --ink: #111413; --muted: #69716D; --line: #DADDD9;
+  --accent: #1F5C4A; --accent-ink: #FFFFFF; --danger: #A8323E; --live: #2BB673; --shadow: rgba(17,20,19,.18);
+  --font-display: "Comfortaa", "Avenir Next", "Century Gothic", system-ui, sans-serif;
+  --font-body: "Urbanist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0F1110; --surface: #171A19; --sunk: #1F2321; --ink: #ECEEEC; --muted: #9AA39E; --line: #2B302D;
+    --accent: #7CC8AC; --accent-ink: #0B1A15; --danger: #FF8A95; --shadow: rgba(0,0,0,.55); color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body); -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+
+.nav { border-bottom: 1px solid var(--line); }
+.nav-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 62px; }
+.mark { font: 700 20px/1 var(--font-display); letter-spacing: -.02em; text-decoration: none; color: inherit; display: inline-flex; align-items: baseline; gap: 7px; }
+.mark i { font-style: normal; font-weight: 400; color: var(--muted); }
+.mark .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translateY(-3px); }
+.pill { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+.pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.on { color: var(--ink); } .pill.on i { background: var(--live); box-shadow: 0 0 0 3px color-mix(in srgb, var(--live) 25%, transparent); }
+.pill.wait i { background: #E5A93B; }
+
+.btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 15px/1 var(--font-body);
+  padding: 0 18px; min-height: 46px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-decoration: none; }
+.btn:hover { border-color: var(--muted); }
+.btn.solid { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.accent { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.lg { min-height: 56px; padding: 0 28px; font-size: 17px; }
+.btn.icon { width: 46px; padding: 0; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn.off { color: var(--danger); }
+
+/* lobby */
+.lobby { padding-block: 56px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
+.kicker { margin: 0 0 18px; font: 600 12px var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1.display { margin: 0; font: 700 clamp(40px, 6vw, 76px)/1.05 var(--font-display); letter-spacing: -.035em; text-wrap: balance; }
+h1.display em { font-style: normal; color: var(--accent); }
+.lede { margin: 22px 0 0; font-size: 18px; color: var(--muted); max-width: 42ch; }
+.steps { margin: 26px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
+.steps li { display: flex; gap: 12px; align-items: baseline; color: var(--muted); }
+.steps li::before { counter-increment: s; content: counter(s); font: 700 13px var(--font-display); color: var(--accent); width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--accent); display: inline-grid; place-items: center; flex: none; transform: translateY(4px); }
+.card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: grid; gap: 18px; }
+.card h2 { margin: 0; font: 700 22px/1.2 var(--font-display); letter-spacing: -.02em; }
+.or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
+.or::before, .or::after { content: ""; height: 1px; flex: 1; background: var(--line); }
+.join { display: flex; gap: 8px; }
+.code-input { flex: 1; min-width: 0; width: 0; font: 700 20px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0 18px; min-height: 52px; }
+.code-input:focus { outline: none; border-color: var(--accent); }
+.note { margin: 0; font-size: 13px; color: var(--muted); }
+.note.err { color: var(--danger); }
+
+/* booth */
+.booth { padding-block: 24px 48px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 28px; align-items: start; }
+.stage { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #000; border-radius: 18px; overflow: hidden; aspect-ratio: 8 / 5; max-width: 100%; }
+.tile { position: relative; background: #1a1d1c; overflow: hidden; min-width: 0; }
+.tile video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+.tile .who { position: absolute; left: 10px; bottom: 10px; font: 600 12px var(--font-body); color: #fff; background: rgba(0,0,0,.5); padding: 4px 10px; border-radius: 999px; }
+.tile .waiting { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: rgba(255,255,255,.8); font-size: 14px; padding: 16px; }
+.overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.pose-pop { display: grid; justify-items: center; gap: 6px; background: rgba(255,255,255,.94); color: #111413; padding: 14px 20px 16px; border-radius: 18px; box-shadow: 0 20px 40px -12px rgba(0,0,0,.5); text-align: center; max-width: 80%; }
+.pose-pop .art svg { width: 96px; height: 88px; color: #111413; }
+.pose-pop .art .emo { font-size: 56px; line-height: 1; }
+.pose-pop small { font: 600 11px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: #69716D; }
+.pose-pop b { font: 700 20px/1.2 var(--font-display); letter-spacing: -.02em; }
+.count { position: absolute; font: 700 min(30vw, 180px)/1 var(--font-display); color: #fff; text-shadow: 0 6px 30px rgba(0,0,0,.5); animation: pop .8s ease-out both; }
+@keyframes pop { from { transform: scale(1.4); opacity: 0; } 30% { opacity: 1; } to { transform: scale(.9); opacity: .9; } }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.flash.go { animation: fl .5s ease-out; }
+@keyframes fl { 0% { opacity: .95; } 100% { opacity: 0; } }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+.bar .grow { flex: 1; }
+.codechip { font: 700 15px var(--font-display); letter-spacing: .18em; color: var(--accent); }
+.status { min-height: 1.5em; margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.status.err { color: var(--danger); }
+.thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+.thumbs div { aspect-ratio: 8 / 5; border-radius: 8px; background: var(--sunk); overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
+
+.side { display: grid; gap: 22px; min-width: 0; }
+.group { display: grid; gap: 10px; }
+.group h3, .lbl { margin: 0; font: 600 11.5px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 600 13.5px/1 var(--font-body); padding: 0 13px; min-height: 36px; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 7px; }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chip .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
+.linkbtn { appearance: none; border: 0; background: none; color: var(--ink); font: 600 13.5px var(--font-body); cursor: pointer; padding: 6px 0; }
+.linkbtn:hover { color: var(--accent); }
+.cap { width: 100%; border: 1.5px solid var(--accent); border-radius: 14px; background: var(--surface); color: var(--ink); font: 700 19px var(--font-display); padding: 12px 14px; letter-spacing: -.02em; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+.cap:focus { outline: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 24%, transparent); }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+.print-box { background: var(--sunk); border-radius: 16px; padding: 18px; display: grid; justify-items: center; gap: 14px; }
+#strip { display: block; max-width: 100%; height: auto; width: 100%; box-shadow: 0 1px 2px var(--shadow), 0 24px 50px -22px var(--shadow); border-radius: 2px; }
+#strip.strip { width: min(100%, 300px); } #strip.polaroid { width: min(100%, 420px); }
+.print-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+@media (max-width: 900px) {
+  .lobby { grid-template-columns: minmax(0, 1fr); padding-top: 32px; gap: 28px; }
+  .booth { grid-template-columns: minmax(0, 1fr); padding-top: 14px; }
+  .stage { aspect-ratio: 4 / 5; border-radius: 14px; }
+}
+@media (prefers-reduced-motion: reduce) { .count, .flash.go { animation: none; } }
+.vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+</style>
+</head>
+<body>
+<nav class="nav"><div class="wrap nav-in">
+  <a class="mark" href="./">Flashbulb <i>live</i><span class="dot" aria-hidden="true"></span></a>
+  <span class="pill" id="pill"><i></i><span id="pillText">Not connected</span></span>
+</div></nav>
+
+<main>
+  <section class="wrap lobby" id="lobby">
+    <div>
+      <p class="kicker">A photo booth for two, wherever you are</p>
+      <h1 class="display">See each other. <em>Pose together.</em></h1>
+      <p class="lede">Open a live booth, send your partner the code, and take a four-shot strip together while you watch each other's cameras.</p>
+      <ol class="steps">
+        <li>Start a booth and send the code or link.</li>
+        <li>Your partner joins. You see and hear each other.</li>
+        <li>Tap Start. You both get the same pose, the same countdown, and one shared print.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h2>Open the booth</h2>
+      <button class="btn accent lg" id="startBtn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
+        Start a booth
+      </button>
+      <div class="or">or join your partner</div>
+      <div class="join">
+        <input class="code-input" id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Booth code from your partner">
+        <button class="btn solid" id="joinBtn" type="button">Join</button>
+      </div>
+      <p class="note" id="lobbyNote">Allow your camera and microphone when asked. Wi-Fi gives the smoothest video.</p>
+    </div>
+  </section>
+
+  <section class="wrap booth" id="booth" hidden>
+    <div>
+      <div class="stage" id="stage">
+        <div class="tile"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
+        <div class="tile"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
+        <div class="overlay" id="overlay"></div>
+        <div class="flash" id="flash"></div>
+      </div>
+      <div class="bar">
+        <button class="btn accent lg" id="shootBtn" type="button" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span id="shootLabel">Start 4 shots</span>
+        </button>
+        <button class="btn icon" id="micBtn" type="button" aria-label="Mute microphone" title="Microphone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="btn icon" id="flipBtn" type="button" aria-label="Switch camera" title="Switch camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5-2.2M15 13a3 3 0 0 1-5 2.2M14 9v2h-2M10 17v-2h2"/></svg>
+        </button>
+        <span class="grow"></span>
+        <span class="lbl">Code</span><span class="codechip" id="codeChip">------</span>
+        <button class="btn" id="shareBtn" type="button">Share link</button>
+        <button class="btn" id="leaveBtn" type="button">Leave</button>
+      </div>
+      <p class="status" id="status" role="status" aria-live="polite"></p>
+      <div class="thumbs" id="thumbs" aria-label="Shots taken"></div>
+    </div>
+
+    <aside class="side" aria-label="Booth settings">
+      <div class="group"><h3>Layout</h3><div class="chips" id="layouts"></div></div>
+      <div class="group"><h3>Film</h3><div class="chips" id="films"></div></div>
+      <div class="group"><h3>Frame &amp; season</h3><div class="chips" id="looks"></div></div>
+      <div class="group">
+        <div class="row"><h3>Poses</h3><button class="linkbtn" id="newPoses" type="button">New poses</button></div>
+        <div class="chips" id="poseModes"></div>
+        <label class="check"><input type="checkbox" id="posePrint" checked> Print poses beside photos</label>
+      </div>
+      <div class="group">
+        <div class="row"><label class="lbl" for="caption">Caption on your print</label><span class="note" id="capCount">13/28</span></div>
+        <input class="cap" id="caption" maxlength="28" value="Miles apart" autocomplete="off">
+        <label class="check"><input type="checkbox" id="capHl" checked> Highlight caption</label>
+      </div>
+      <div class="print-box">
+        <canvas id="strip" class="strip" role="img" aria-label="Your shared print"></canvas>
+        <div class="print-actions">
+          <button class="btn solid" id="saveBtn" type="button">Save print</button>
+          <button class="btn" id="shareImgBtn" type="button" hidden>Share print</button>
+        </div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+(() => {
+  const LAYOUTS = {
+    strip:    { label: "Strip", sub: "4", n: 4 },
+    grid:     { label: "Grid", sub: "2×2", n: 4 },
+    polaroid: { label: "Instant", sub: "1", n: 1 },
+  };
+  const FILTERS = { none: "Natural", mono: "Silver", sepia: "Sepia", film: "Faded film", cool: "Cool", punch: "Vivid" };
+  const FRAMES = [
+    { name: "Paper", bg: "#FAFAF7", ink: "#1A1C1B", hl: "#FFE27A" },
+    { name: "Onyx",  bg: "#141615", ink: "#EDEDE8", hl: "#2F6B57" },
+    { name: "Blush", bg: "#EED9D5", ink: "#4A2A2A", hl: "#F6A9B8" },
+    { name: "Sage",  bg: "#D5DFD6", ink: "#20352B", hl: "#9FD1B3" },
+    { name: "Sand",  bg: "#E7DDCB", ink: "#3D3222", hl: "#F2C66A" },
+    { name: "Navy",  bg: "#1D2A3F", ink: "#E8E2D4", hl: "#3E5F92" },
+  ];
+  const state = {
+    photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
+    layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true,
+  };
+  let poseMode = "meme", posePrint = true;
+  const picks = { classic: [0, 1, 2, 3], meme: [0, 1, 2, 3] };
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("strip"), ctx = canvas.getContext("2d");
+  if (!ctx.roundRect) ctx.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+  /* ---------- Geometry ---------- */
+  function withPoses() { return !state.noPoses && poseMode !== "off" && posePrint; }
+  function spec(layout) {
+    if (withPoses()) {
+      if (layout === "strip") {
+        const m = 36, gap = 18, pw = 528, ph = 396, col = 250, foot = 190, W = m + pw + gap + col + m;
+        return { W, H: m + 4 * ph + 3 * gap + foot, footY: m + 4 * ph + 3 * gap, foot, nameSize: 27,
+          slots: [0, 1, 2, 3].map((i) => ({ x: m, y: m + i * (ph + gap), w: pw, h: ph, pose: { x: m + pw + gap, y: m + i * (ph + gap), w: col, h: ph } })) };
+      }
+      if (layout === "grid") {
+        const m = 40, gx = 24, gy = 18, pw = 400, ph = 300, inner = 14, col = 190, cell = pw + inner + col, foot = 180, W = m * 2 + cell * 2 + gx;
+        return { W, H: m + 2 * ph + gy + foot, footY: m + 2 * ph + gy, foot, nameSize: 22,
+          slots: [0, 1, 2, 3].map((i) => { const x = m + (i % 2) * (cell + gx), y = m + Math.floor(i / 2) * (ph + gy); return { x, y, w: pw, h: ph, pose: { x: x + pw + inner, y, w: col, h: ph } }; }) };
+      }
+      const m = 44, pw = 712, gap = 22, col = 280, foot = 220, W = m + pw + gap + col + m;
+      return { W, H: m + pw + foot, footY: m + pw, foot, nameSize: 32, slots: [{ x: m, y: m, w: pw, h: pw, pose: { x: m + pw + gap, y: m, w: col, h: pw } }] };
+    }
+    if (layout === "strip") {
+      const W = 600, m = 36, gap = 18, pw = W - m * 2, ph = Math.round(pw * 3 / 4), foot = 190;
+      return { W, H: m + 4 * ph + 3 * gap + foot, slots: [0, 1, 2, 3].map((i) => ({ x: m, y: m + i * (ph + gap), w: pw, h: ph })), footY: m + 4 * ph + 3 * gap, foot };
+    }
+    if (layout === "grid") {
+      const W = 1000, m = 40, gap = 18, pw = (W - m * 2 - gap) / 2, ph = Math.round(pw * 3 / 4), foot = 180;
+      return { W, H: m + 2 * ph + gap + foot, slots: [0, 1, 2, 3].map((i) => ({ x: m + (i % 2) * (pw + gap), y: m + Math.floor(i / 2) * (ph + gap), w: pw, h: ph })), footY: m + 2 * ph + gap, foot };
+    }
+    const W = 800, m = 44, pw = W - m * 2, ph = pw, foot = 220;
+    return { W, H: m + ph + foot, slots: [{ x: m, y: m, w: pw, h: ph }], footY: m + ph, foot };
+  }
+
+  /* ---------- Film looks ---------- */
+  function applyFilter(g, w, h, name) {
+    if (name === "none") return;
+    const img = g.getImageData(0, 0, w, h), d = img.data;
+    const cl = (v) => v < 0 ? 0 : v > 255 ? 255 : v;
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], gr = d[i + 1], b = d[i + 2];
+      const l = 0.299 * r + 0.587 * gr + 0.114 * b;
+      if (name === "mono") { const v = (l - 128) * 1.15 + 132; r = v; gr = v; b = v * 1.02; }
+      else if (name === "sepia") { const nr = r * .393 + gr * .769 + b * .189, ng = r * .349 + gr * .686 + b * .168, nb = r * .272 + gr * .534 + b * .131; r = nr; gr = ng; b = nb; }
+      else if (name === "film") { r = (r * 1.05 + 10) * .87 + 22; gr = (gr + 5) * .87 + 22; b = (b * .88 + 16) * .87 + 24; }
+      else if (name === "cool") { r = r * .9; gr = gr + 4; b = b * 1.08 + 14; }
+      else if (name === "punch") {
+        r = l + (r - l) * 1.3; gr = l + (gr - l) * 1.3; b = l + (b - l) * 1.3;
+        r = (r - 128) * 1.15 + 128; gr = (gr - 128) * 1.15 + 128; b = (b - 128) * 1.15 + 128;
+      }
+      d[i] = cl(r); d[i + 1] = cl(gr); d[i + 2] = cl(b);
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  let mySide = "A";
+  const sideArr = (side) => (side === "B" ? state.photosB : state.photos);
+  const otherSide = () => (mySide === "A" ? "B" : "A");
+  function sourceFor(i, side = "A") {
+    const arr = sideArr(side);
+    if (arr[i]) return { src: arr[i].canvas, sample: false };
+    if (state.usingSamples) return { src: state.samples[side === "B" ? (i + 1) % 4 : i], sample: true };
+    return null;
+  }
+  function halves(rect) {
+    const g = Math.round(rect.w * .014) + 4, hw = (rect.w - g) / 2;
+    return [["A", { x: rect.x, y: rect.y, w: hw, h: rect.h }], ["B", { x: rect.x + hw + g, y: rect.y, w: hw, h: rect.h }]];
+  }
+  function cover(g, src, w, h) {
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    const s = Math.max(w / sw, h / sh), dw = sw * s, dh = sh * s;
+    g.save(); if (state.mirror) { g.translate(w, 0); g.scale(-1, 1); }
+    g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh); g.restore();
+  }
+  function drawShot(src, rect) {
+    const off = document.createElement("canvas"); off.width = Math.round(rect.w); off.height = Math.round(rect.h);
+    const g = off.getContext("2d");
+    cover(g, src, off.width, off.height);
+    applyFilter(g, off.width, off.height, state.filter);
+    const v = g.createRadialGradient(off.width / 2, off.height / 2, off.height * .4, off.width / 2, off.height / 2, off.height * .9);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.16)");
+    g.fillStyle = v; g.fillRect(0, 0, off.width, off.height);
+    ctx.drawImage(off, rect.x, rect.y);
+  }
+  function drawEmpty(rect, i, frame, side) {
+    ctx.save();
+    if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .92; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); }
+    ctx.fillStyle = frame.ink; ctx.globalAlpha = .06; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.globalAlpha = .55; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const label = !state.duo ? `TAP TO ADD SHOT ${i + 1}` : side === mySide ? `YOUR SHOT ${i + 1}` : `PARTNER ${i + 1}`;
+    let size = Math.round(rect.h * .07);
+    ctx.font = `500 ${size}px "Urbanist", sans-serif`;
+    while (ctx.measureText(label).width > rect.w - 16 && size > 9) { size--; ctx.font = `500 ${size}px "Urbanist", sans-serif`; }
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+    ctx.restore();
+  }
+  function dateStamp() {
+    const d = new Date(), mon = d.toLocaleString("en", { month: "short" }).toUpperCase();
+    return `${String(d.getDate()).padStart(2, "0")} ${mon} ${d.getFullYear()}  ·  ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  /* ---------- Season themes: patterned print backgrounds ---------- */
+  function rng(seed) { return () => { seed = (seed + 0x6D2B79F5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  function star(g, x, y, r, inner, rot = -Math.PI / 2) {
+    g.beginPath();
+    for (let i = 0; i < 10; i++) { const a = rot + i * Math.PI / 5, rr = i % 2 ? r * inner : r; g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    g.closePath();
+  }
+  function heart(g, x, y, s) {
+    g.beginPath(); g.moveTo(x, y + s * .35);
+    g.bezierCurveTo(x - s * 1.1, y - s * .45, x - s * .45, y - s * 1.05, x, y - s * .45);
+    g.bezierCurveTo(x + s * .45, y - s * 1.05, x + s * 1.1, y - s * .45, x, y + s * .35); g.closePath();
+  }
+  const THEMES = {
+    none: { label: "None" },
+    pasko: { label: "Pasko", bg: ["#17402F", "#0E2A1F"], ink: "#F7ECCF", hl: "#B3242E", months: [9, 11, 12],
+      draw(g, W, H, R, k) {
+        g.fillStyle = "rgba(255,255,255,.55)";
+        for (let i = 0; i < W * H / 2200; i++) { g.globalAlpha = .25 + R() * .5; g.beginPath(); g.arc(R() * W, R() * H, (1 + R() * 2.4) * k, 0, 7); g.fill(); }
+        g.globalAlpha = 1;
+        const n = Math.max(6, Math.round(W * H / 42000));
+        for (let i = 0; i < n; i++) {
+          const x = R() * W, y = R() * H, r = (16 + R() * 14) * k, rot = -Math.PI / 2 + (R() - .5) * .4;
+          g.strokeStyle = "#E3B341"; g.lineWidth = 1.6 * k;
+          for (let t = -1; t <= 1; t++) { g.beginPath(); g.moveTo(x + t * r * .25, y + r * .7); g.quadraticCurveTo(x + t * r * .5 + r * .2, y + r * 1.5, x + t * r * .3, y + r * 2.1); g.stroke(); }
+          g.fillStyle = "#E3B341"; star(g, x, y, r, .45, rot); g.fill();
+          g.fillStyle = "#C8202F"; star(g, x, y, r * .62, .45, rot); g.fill();
+          g.fillStyle = "#FFE9A8"; g.beginPath(); g.arc(x, y, r * .16, 0, 7); g.fill();
+        }
+      } },
+    valentine: { label: "Valentine", bg: ["#FBE3E8", "#F4C3CE"], ink: "#5A1A2A", hl: "#FF9DB0", months: [2],
+      draw(g, W, H, R, k) {
+        const cols = ["#E8536F", "#F28AA0", "#FFFFFF", "#C9334F"];
+        for (let i = 0; i < W * H / 5200; i++) { g.globalAlpha = .55 + R() * .4; g.fillStyle = cols[i % 4]; heart(g, R() * W, R() * H, (6 + R() * 14) * k); g.fill(); }
+        g.globalAlpha = 1;
+      } },
+    summer: { label: "Summer", bg: ["#FFF0C7", "#9ED8E8"], ink: "#0F3B4A", hl: "#FFC94A", months: [3, 4, 5],
+      draw(g, W, H, R, k) {
+        for (let i = 0; i < Math.max(4, W * H / 70000); i++) {
+          const x = R() * W, y = R() * H * .55, r = (12 + R() * 10) * k;
+          g.strokeStyle = "#FFB627"; g.lineWidth = 2.4 * k; g.lineCap = "round";
+          for (let a = 0; a < 12; a++) { const t = a * Math.PI / 6; g.beginPath(); g.moveTo(x + Math.cos(t) * r * 1.35, y + Math.sin(t) * r * 1.35); g.lineTo(x + Math.cos(t) * r * 1.75, y + Math.sin(t) * r * 1.75); g.stroke(); }
+          g.fillStyle = "#FFB627"; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+        }
+        g.lineWidth = 2.2 * k; g.lineCap = "round";
+        for (let i = 0; i < W * H / 9000; i++) {
+          const x = R() * W, y = H * .35 + R() * H * .65, w = (26 + R() * 30) * k;
+          g.strokeStyle = R() > .5 ? "rgba(255,255,255,.85)" : "rgba(20,120,150,.45)";
+          g.beginPath(); g.moveTo(x, y); g.bezierCurveTo(x + w * .25, y - 7 * k, x + w * .5, y + 7 * k, x + w * .75, y); g.quadraticCurveTo(x + w * .9, y - 4 * k, x + w, y); g.stroke();
+        }
+      } },
+    spring: { label: "Spring", bg: ["#F2F8EB", "#DDEED3"], ink: "#23402E", hl: "#F7C1D9", months: [],
+      draw(g, W, H, R, k) {
+        const cols = ["#F7A8C4", "#FFD166", "#C3B1E1", "#FFFFFF"];
+        for (let i = 0; i < W * H / 6500; i++) {
+          const x = R() * W, y = R() * H, r = (5 + R() * 8) * k, rot = R() * 6;
+          g.fillStyle = "rgba(90,150,90,.45)"; g.beginPath(); g.ellipse(x + r * 1.6, y + r * 1.2, r * .9, r * .4, rot, 0, 7); g.fill();
+          g.fillStyle = cols[i % 4];
+          for (let p = 0; p < 5; p++) { const a = rot + p * Math.PI * 2 / 5; g.beginPath(); g.arc(x + Math.cos(a) * r, y + Math.sin(a) * r, r * .72, 0, 7); g.fill(); }
+          g.fillStyle = "#F2A541"; g.beginPath(); g.arc(x, y, r * .5, 0, 7); g.fill();
+        }
+      } },
+    halloween: { label: "Halloween", bg: ["#251C30", "#140F1B"], ink: "#F6DDB4", hl: "#B9541A", months: [10],
+      draw(g, W, H, R, k) {
+        g.fillStyle = "#F6DDB4";
+        for (let i = 0; i < W * H / 3500; i++) { g.globalAlpha = .2 + R() * .5; g.beginPath(); g.arc(R() * W, R() * H, (.8 + R() * 1.6) * k, 0, 7); g.fill(); }
+        g.globalAlpha = 1;
+        for (let i = 0; i < W * H / 26000; i++) {
+          const x = R() * W, y = R() * H, r = (11 + R() * 9) * k;
+          if (R() > .45) {
+            g.fillStyle = "#E7792B"; [-.55, 0, .55].forEach((o) => { g.beginPath(); g.ellipse(x + o * r, y, r * .62, r * .85, 0, 0, 7); g.fill(); });
+            g.fillStyle = "#4E7A3A"; g.fillRect(x - r * .1, y - r * 1.15, r * .2, r * .4);
+            g.fillStyle = "#3A1C08"; star(g, x - r * .35, y - r * .15, r * .16, .9, 0); g.fill(); star(g, x + r * .35, y - r * .15, r * .16, .9, 0); g.fill();
+          } else {
+            g.fillStyle = "#4A3A5C"; g.beginPath(); g.moveTo(x, y);
+            g.quadraticCurveTo(x - r * .6, y - r * .8, x - r * 1.6, y - r * .3); g.quadraticCurveTo(x - r * 1.1, y - r * .1, x - r * 1.2, y + r * .3);
+            g.quadraticCurveTo(x - r * .6, y, x, y + r * .25); g.quadraticCurveTo(x + r * .6, y, x + r * 1.2, y + r * .3);
+            g.quadraticCurveTo(x + r * 1.1, y - r * .1, x + r * 1.6, y - r * .3); g.quadraticCurveTo(x + r * .6, y - r * .8, x, y); g.fill();
+          }
+        }
+      } },
+    newyear: { label: "New Year", bg: ["#18203A", "#0C1020"], ink: "#F3E7C6", hl: "#8C6A22", months: [1],
+      draw(g, W, H, R, k) {
+        for (let i = 0; i < Math.max(4, W * H / 60000); i++) {
+          const x = R() * W, y = R() * H, r = (22 + R() * 18) * k, col = ["#C9A24A", "#E57F84", "#7FB3D5"][i % 3];
+          g.strokeStyle = col; g.lineWidth = 1.6 * k; g.lineCap = "round";
+          for (let a = 0; a < 16; a++) { const t = a * Math.PI / 8; g.beginPath(); g.moveTo(x + Math.cos(t) * r * .35, y + Math.sin(t) * r * .35); g.lineTo(x + Math.cos(t) * r, y + Math.sin(t) * r); g.stroke(); }
+        }
+        const cols = ["#C9A24A", "#E8D9A8", "#7FB3D5", "#E57F84"];
+        for (let i = 0; i < W * H / 3200; i++) {
+          g.save(); g.translate(R() * W, R() * H); g.rotate(R() * 6); g.fillStyle = cols[i % 4]; g.globalAlpha = .55 + R() * .45;
+          g.fillRect(-3 * k, -1.2 * k, 6 * k, 2.4 * k); g.restore();
+        }
+        g.fillStyle = "#E8D9A8"; for (let i = 0; i < W * H / 50000; i++) { star(g, R() * W, R() * H, (4 + R() * 4) * k, .4); g.fill(); }
+      } },
+  };
+  function seasonNow() {
+    const m = new Date().getMonth() + 1;
+    return Object.keys(THEMES).find((key) => (THEMES[key].months || []).includes(m)) || null;
+  }
+  function currentFrame() {
+    const t = THEMES[state.theme];
+    if (t && t.bg) return { name: t.label, bg: t.bg[0], ink: t.ink, hl: t.hl, theme: state.theme };
+    return FRAMES[state.frame];
+  }
+  function paintBackground(g, W, H, frame, k) {
+    const t = frame.theme && THEMES[frame.theme];
+    if (!t) { g.fillStyle = frame.bg; g.fillRect(0, 0, W, H); return; }
+    const lg = g.createLinearGradient(0, 0, 0, H); lg.addColorStop(0, t.bg[0]); lg.addColorStop(1, t.bg[1]);
+    g.fillStyle = lg; g.fillRect(0, 0, W, H);
+    g.save(); t.draw(g, W, H, rng(7 + W + H), k); g.restore();
+  }
+
+  const artCache = new Map();
+  function poseArt(idx, frame) {
+    const f = MEME[idx], key = f.img ? f.img : `${idx}|${frame.ink}|${frame.bg}`;
+    let e = artCache.get(key);
+    if (!e) {
+      const im = new Image(); e = { im, ready: false }; artCache.set(key, e);
+      im.onload = () => { e.ready = true; render(); };
+      im.src = f.img || ("data:image/svg+xml;charset=utf-8," + encodeURIComponent(figureSVG(f, frame.ink, frame.bg)));
+    }
+    return e.ready ? e.im : null;
+  }
+  function drawPose(r, i, frame, nameSize) {
+    const idx = picks[poseMode][i]; if (idx == null) return;
+    const name = poseMode === "meme" ? MEME[idx].name : CLASSIC[idx][1];
+    ctx.save();
+    if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .9; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill(); }
+    ctx.fillStyle = frame.ink; ctx.globalAlpha = .05;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill();
+    ctx.globalAlpha = 1;
+    const pad = 14, textH = nameSize * 2.6, box = Math.min(r.w - pad * 2, r.h - textH - pad);
+    const ax = r.x + (r.w - box) / 2, ay = r.y + pad + (r.h - textH - pad - box) / 2;
+    if (poseMode === "meme") {
+      const im = poseArt(idx, frame);
+      if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min(box / iw, box / ih); ctx.drawImage(im, ax + (box - iw * s) / 2, ay + (box - ih * s) / 2, iw * s, ih * s); }
+    } else {
+      ctx.font = `${Math.round(box * .62)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(CLASSIC[idx][0], ax + box / 2, ay + box / 2);
+    }
+    ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.globalAlpha = .55; ctx.font = `600 ${Math.round(nameSize * .5)}px "Urbanist", sans-serif`;
+    ctx.fillText(`SHOT ${i + 1}`.split("").join(String.fromCharCode(8202)), r.x + r.w / 2, r.y + r.h - pad - nameSize * 1.25);
+    ctx.globalAlpha = 1; let size = nameSize;
+    const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
+    setF(); while (ctx.measureText(name).width > r.w - 20 && size > 12) { size -= 1; setF(); }
+    ctx.fillText(name, r.x + r.w / 2, r.y + r.h - pad - 4);
+    ctx.restore();
+  }
+
+  function render() {
+    const sp = spec(state.layout), frame = currentFrame();
+    canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "");
+    paintBackground(ctx, sp.W, sp.H, frame, sp.W / 600);
+    let anySample = false;
+    sp.slots.forEach((rect, i) => {
+      if (state.duo) {
+        halves(rect).forEach(([sd, hr]) => { const s = sourceFor(i, sd); if (s) { drawShot(s.src, hr); anySample = anySample || s.sample; } else drawEmpty(hr, i, frame, sd); });
+      } else {
+        const s = sourceFor(i);
+        if (s) { drawShot(s.src, rect); anySample = anySample || s.sample; } else drawEmpty(rect, i, frame);
+      }
+      if (rect.pose) drawPose(rect.pose, i, frame, sp.nameSize);
+    });
+    if (anySample && !state.hideSampleTag) {
+      const r = sp.slots[0];
+      ctx.save(); ctx.font = `500 16px "Urbanist", sans-serif`;
+      const tw = ctx.measureText("SAMPLE").width + 22;
+      ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x + 14, r.y + 14, tw, 28, 14) : ctx.rect(r.x + 14, r.y + 14, tw, 28); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText("SAMPLE", r.x + 25, r.y + 29); ctx.restore();
+    }
+    const wpOn = withPoses(), cx = sp.W / 2, big = state.layout === "strip" ? (wpOn ? 48 : 42) : state.layout === "grid" ? (wpOn ? 66 : 56) : (wpOn ? 62 : 54);
+    ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    const cap = state.caption.trim(); let size = big;
+    const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
+    setF(); while (cap && ctx.measureText(cap).width > sp.W - 80 && size > 22) { size -= 2; setF(); }
+    const capY = sp.footY + sp.foot * (state.showDate ? .52 : .62);
+    if (cap && state.capHl) {
+      const tw = ctx.measureText(cap).width;
+      ctx.save(); ctx.translate(cx, capY); ctx.rotate(-0.012);
+      ctx.fillStyle = frame.hl; ctx.globalAlpha = .9; ctx.beginPath();
+      const hx = -tw / 2 - size * .35, hy = -size * .5, hw = tw + size * .7, hh = size * .62;
+      ctx.roundRect ? ctx.roundRect(hx, hy, hw, hh, size * .14) : ctx.rect(hx, hy, hw, hh); ctx.fill();
+      ctx.restore(); ctx.fillStyle = frame.ink;
+    }
+    if (cap) ctx.fillText(cap, cx, capY);
+    if (state.showDate) {
+      ctx.font = `500 ${state.layout === "strip" ? 15 : 18}px "Urbanist", sans-serif`; ctx.globalAlpha = .6;
+      ctx.fillText(dateStamp().split("").join(String.fromCharCode(8202)), cx, cap ? capY + 42 : sp.footY + sp.foot * .5);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* ---------- Pose guide: Off / Classic (emoji) / Meme (line drawings) ---------- */
+  const CLASSIC = [
+    ["✌️", "Peace sign", "The classic. Tilt your head a little."],
+    ["🫰", "Finger heart", "Cross your thumb and index finger."],
+    ["🫶", "Heart hands", "Make one big heart together."],
+    ["😂", "Fake candid laugh", "Look away and laugh at nothing."],
+    ["🤨", "Side-eye", "Slowly look at the person next to you."],
+    ["👉", "Point at each other", "Everyone points. Who's the real one?"],
+    ["😱", "Shocked", "Hands on cheeks, mouth wide open."],
+    ["😐", "Serious squad", "No smiling. Stare straight into the lens."],
+    ["💅", "Main character", "Hand on chin, glamour face, chin up."],
+    ["🐰", "Bunny ears", "Sneak them behind someone's head."],
+    ["😘", "Blow a kiss", "Send it straight to the camera."],
+    ["🙈", "Too shy", "Cover your face, peek through your fingers."],
+  ];
+  // Meme poses drawn as simple outline figures. Arms are [shoulder, elbow, hand] points in a 100×100 box.
+  const MEME = [
+    { name: "Heart hands", tip: "Make a heart over your chest. Soft eyes.", mouth: "smile",
+      arms: [[[34, 50], [27, 70], [45, 61]], [[66, 50], [73, 70], [55, 61]]], extra: "heart" },
+    { name: "Who, me?", tip: "Point at your own chest. Smug little smile.", mouth: "smirk",
+      arms: [[[34, 50], [29, 74], [33, 96]], [[66, 50], [72, 76], [53, 64]]], extra: "point" },
+    { name: "Time out", tip: "Make a T with your hands. Dead serious face.", mouth: "flat",
+      arms: [[[34, 50], [30, 60], [67, 58]], [[66, 50], [56, 86], [51, 61]]] },
+    { name: "Begone!", tip: "One palm up, hold your phone out like a shield.", mouth: "open", eyes: "wide",
+      arms: [[[34, 50], [24, 64], [17, 56]], [[66, 50], [80, 38], [84, 16]]], extra: "shield", palm: 1 },
+    { name: "Please, I beg", tip: "Hands pressed together, puppy eyes.", mouth: "sad",
+      arms: [[[34, 50], [30, 72], [49, 54]], [[66, 50], [70, 72], [51, 54]]] },
+    { name: "Airplane", tip: "Arms out wide like you're flying. Big grin.", mouth: "open",
+      arms: [[[34, 50], [18, 51], [3, 53]], [[66, 50], [82, 49], [97, 47]]] },
+    { name: "Big brain", tip: "Tap your temple. You just figured it out.", mouth: "smirk",
+      arms: [[[34, 50], [29, 74], [33, 96]], [[66, 50], [80, 46], [63, 24]]] },
+    { name: "Flex", tip: "Both arms up. Make it dramatic.", mouth: "open",
+      arms: [[[34, 50], [16, 47], [21, 30]], [[66, 50], [84, 47], [79, 30]]] },
+    { name: "Shh", tip: "Finger on your lips, eyebrows up.", mouth: "flat",
+      arms: [[[34, 50], [29, 74], [33, 96]], [[66, 50], [70, 70], [51, 34]]] },
+  ];
+  // To use a picture instead of a drawing later, add img: "poses/flex.png" (or .gif) to a MEME entry.
+  // GIFs print as their first frame, because the saved print is a still PNG.
+  function figureSVG(f, ink = "currentColor", bg = "var(--surface)") {
+    const arm = (pts) => `M${pts.map((q) => q.join(" ")).join(" L")}`;
+    const mouths = {
+      smile: '<path d="M44 33 Q50 38 56 33"/>', smirk: '<path d="M45 34 Q51 36 56 32"/>',
+      open: `<ellipse cx="50" cy="34" rx="4" ry="3.2" fill="${ink}"/>`, flat: '<path d="M45 34 H55"/>',
+      sad: '<path d="M45 35 Q50 31 55 35"/>',
+    };
+    const eyes = f.eyes === "wide"
+      ? `<circle cx="45" cy="24" r="2.4"/><circle cx="55" cy="24" r="2.4"/><circle cx="45" cy="24" r=".8" fill="${ink}"/><circle cx="55" cy="24" r=".8" fill="${ink}"/>`
+      : `<circle cx="45" cy="25" r="1.1" fill="${ink}"/><circle cx="55" cy="25" r="1.1" fill="${ink}"/>`;
+    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="92" viewBox="0 8 100 92" aria-hidden="true" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">`;
+    out += `<path d="M44 40 L44 45 Q36 46 33 49 Q28 70 30 100 H70 Q72 70 67 49 Q64 46 56 45 L56 40" fill="${bg}"/>`;
+    out += `<ellipse cx="50" cy="26" rx="11" ry="13.5" fill="${bg}"/>${eyes}${mouths[f.mouth] || mouths.smile}`;
+    if (f.extra === "shield") out += `<rect x="9" y="47" width="9" height="15" rx="2" transform="rotate(-12 13 54)" fill="${bg}"/>`;
+    f.arms.forEach((a) => { out += `<path d="${arm(a)}" stroke-width="10.5"/><path d="${arm(a)}" stroke="${bg}" stroke-width="6.5"/>`; });
+    f.arms.forEach((a, k) => {
+      const h = a[2], r = f.palm === k ? 5 : 3.6;
+      out += `<circle cx="${h[0]}" cy="${h[1]}" r="${r}" fill="${bg}"/>`;
+    });
+    if (f.extra === "heart") out += '<path d="M50 66 C42 60 44 54 50 58 C56 54 58 60 50 66Z" fill="#E0607E" stroke="none"/>';
+    if (f.extra === "point") out += '<path d="M53 64 L45 62"/>';
+    return out + "</svg>";
+  }
+
+  /* ---------- small helpers ---------- */
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const params = new URLSearchParams(location.search);
+  function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
+  function setPill(mode, text) { const p = $("pill"); p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
+  function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
+  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length);
+
+  /* ---------- settings UI ---------- */
+  function chip(label, pressed, onClick, swatch) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", String(pressed));
+    if (swatch) { const s = document.createElement("span"); s.className = "sw"; s.style.background = swatch; b.appendChild(s); }
+    b.appendChild(document.createTextNode(label)); b.addEventListener("click", onClick); return b;
+  }
+  function buildUI() {
+    const lay = $("layouts"); lay.innerHTML = "";
+    Object.entries(LAYOUTS).forEach(([k, v]) => lay.appendChild(chip(`${v.label} · ${v.n === 1 ? "1 shot" : "4 shots"}`, state.layout === k, () => { state.layout = k; changed(); })));
+    const fl = $("films"); fl.innerHTML = "";
+    Object.entries(FILTERS).forEach(([k, v]) => fl.appendChild(chip(v, state.filter === k, () => { state.filter = k; changed(); })));
+    const lk = $("looks"); lk.innerHTML = "";
+    FRAMES.forEach((f, i) => lk.appendChild(chip(f.name, state.theme === "none" && state.frame === i, () => { state.frame = i; state.theme = "none"; changed(); }, f.bg)));
+    Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) lk.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
+    const pm = $("poseModes"); pm.innerHTML = "";
+    [["off", "Off"], ["classic", "Classic"], ["meme", "Meme"]].forEach(([k, l]) => pm.appendChild(chip(l, poseMode === k, () => { poseMode = k; changed(); })));
+    $("newPoses").hidden = poseMode === "off";
+    $("posePrint").checked = posePrint; $("capHl").checked = state.capHl;
+    if (document.activeElement !== $("caption")) $("caption").value = state.caption;
+    $("capCount").textContent = `${state.caption.length}/28`;
+    const n = LAYOUTS[state.layout].n;
+    $("shootLabel").textContent = busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
+  }
+  function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
+  $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
+  $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
+  $("posePrint").addEventListener("change", (e) => { posePrint = e.target.checked; changed(); });
+  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); changed(); setStatus("New poses for both of you."); });
+
+  function renderThumbs() {
+    const n = LAYOUTS[state.layout].n, box = $("thumbs"); box.innerHTML = "";
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement("div");
+      ["A", "B"].forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; d.appendChild(im); } else d.appendChild(document.createElement("span")); });
+      box.appendChild(d);
+    }
+  }
+
+  /* ---------- camera ---------- */
+  let localStream = null, facing = "user", micOn = true;
+  async function openCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error("nomedia"), { name: "NoMedia" });
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: { echoCancellation: true, noiseSuppression: true },
+    });
+  }
+  function cameraError(e) {
+    const n = e && e.name;
+    if (n === "NotAllowedError") return "Camera access was blocked. Allow camera and microphone for this site in your browser settings, then try again.";
+    if (n === "NotFoundError" || n === "OverconstrainedError") return "No camera was found on this device.";
+    if (n === "NoMedia") return "This browser can't use the camera here. Open the booth over https in Chrome, Safari or Edge.";
+    if (n === "NotReadableError") return "Another app is using your camera. Close it and try again.";
+    return "Couldn't start your camera. Try again.";
+  }
+  function localVideo() { return mySide === "A" ? $("vidA") : $("vidB"); }
+  function remoteVideo() { return mySide === "A" ? $("vidB") : $("vidA"); }
+  function showLocal() {
+    const v = localVideo(); v.srcObject = localStream; v.muted = true; v.play().catch(() => {});
+    $(mySide === "A" ? "whoA" : "whoB").textContent = "You";
+    $(mySide === "A" ? "whoB" : "whoA").textContent = "Partner";
+    $(mySide === "A" ? "waitA" : "waitB").hidden = true;
+    const w = $(mySide === "A" ? "waitB" : "waitA"); w.hidden = false; w.textContent = "Waiting for your partner to join…";
+  }
+  function showRemote(stream) {
+    const v = remoteVideo(); v.srcObject = stream; v.muted = false;
+    v.play().catch(() => { setStatus("Tap anywhere to hear your partner."); document.addEventListener("click", () => v.play().catch(() => {}), { once: true }); });
+    $(mySide === "A" ? "waitB" : "waitA").hidden = true;
+  }
+  function clearRemote(msg) {
+    const v = remoteVideo(); v.srcObject = null;
+    const w = $(mySide === "A" ? "waitB" : "waitA"); w.hidden = false; w.textContent = msg || "Waiting for your partner to join…";
+  }
+  $("micBtn").addEventListener("click", () => {
+    micOn = !micOn; if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = micOn; });
+    $("micBtn").classList.toggle("off", !micOn); $("micBtn").setAttribute("aria-label", micOn ? "Mute microphone" : "Unmute microphone");
+    setStatus(micOn ? "Microphone on." : "Microphone muted.");
+  });
+  $("flipBtn").addEventListener("click", async () => {
+    facing = facing === "user" ? "environment" : "user";
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } } });
+      const nt = s.getVideoTracks()[0], old = localStream.getVideoTracks()[0];
+      localStream.removeTrack(old); old.stop(); localStream.addTrack(nt);
+      if (call && call.peerConnection) { const snd = call.peerConnection.getSenders().find((x) => x.track && x.track.kind === "video"); if (snd) snd.replaceTrack(nt); }
+      localVideo().style.transform = facing === "user" ? "" : "none";
+      state.mirror = facing === "user"; render();
+    } catch (e) { facing = facing === "user" ? "environment" : "user"; setStatus("Couldn't switch cameras on this device.", true); }
+  });
+
+  /* ---------- connection (PeerJS) ---------- */
+  const PREFIX = "flashbulb-live-";
+  const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const genCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+  let peer = null, conn = null, call = null, code = "", busy = false;
+  function peerOptions() {
+    const o = { debug: 0, config: { iceServers: [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }] } };
+    if (params.get("turn")) o.config.iceServers.push({ urls: params.get("turn"), username: params.get("turnuser") || "", credential: params.get("turnpass") || "" });
+    if (params.get("peerhost")) { o.host = params.get("peerhost"); o.port = +(params.get("peerport") || 443); o.path = params.get("peerpath") || "/"; o.secure = params.get("peersecure") !== "0"; }
+    return o;
+  }
+  function enterBooth() {
+    $("lobby").hidden = true; $("booth").hidden = false;
+    $("codeChip").textContent = code; showLocal(); buildUI(); render(); renderThumbs();
+    if (navigator.share) $("shareImgBtn").hidden = false;
+  }
+  function lobbyNote(msg, err) { const n = $("lobbyNote"); n.textContent = msg; n.classList.toggle("err", !!err); }
+  function busyBtns(on) { ["startBtn", "joinBtn"].forEach((id) => { $(id).disabled = on; }); }
+
+  async function startBooth() {
+    if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
+    busyBtns(true); lobbyNote("Starting your camera…");
+    try { localStream = await openCamera(); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
+    mySide = "A"; code = genCode();
+    const tryOpen = (attempt) => {
+      peer = new Peer(PREFIX + code, peerOptions());
+      peer.on("open", () => { enterBooth(); setPill("wait", "Waiting for partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
+      peer.on("error", (e) => {
+        if (e.type === "unavailable-id" && attempt < 3) { peer.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
+        if (e.type === "network" || e.type === "server-error" || e.type === "socket-error") { setPill("", "Offline"); (($("booth").hidden) ? lobbyNote : setStatus)("Lost the connection to the booth service. Check your internet.", true); busyBtns(false); return; }
+        if (e.type !== "peer-unavailable") setStatus("Connection problem: " + e.type, true);
+      });
+      peer.on("connection", (c) => {
+        if (conn && conn.open) { c.on("open", () => { c.send({ t: "full" }); setTimeout(() => c.close(), 500); }); return; }
+        wireConn(c);
+      });
+      peer.on("call", (cl) => {
+        if (call && call.open) { cl.close(); return; }
+        call = cl; cl.answer(localStream); wireCall(cl);
+      });
+    };
+    tryOpen(0);
+  }
+  async function joinBooth() {
+    const c = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (c.length !== 6) { lobbyNote("Booth codes have 6 letters and numbers.", true); return; }
+    if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
+    busyBtns(true); lobbyNote("Starting your camera…");
+    try { localStream = await openCamera(); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
+    mySide = "B"; code = c;
+    peer = new Peer(peerOptions());
+    peer.on("open", () => {
+      lobbyNote("Connecting to your partner…");
+      const dc = peer.connect(PREFIX + code, { reliable: true });
+      wireConn(dc);
+      call = peer.call(PREFIX + code, localStream); wireCall(call);
+      const t = setTimeout(() => { if (!conn || !conn.open) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
+      dc.on("open", () => { clearTimeout(t); enterBooth(); });
+    });
+    peer.on("error", (e) => {
+      if (e.type === "peer-unavailable") { lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return; }
+      ((($("booth").hidden) ? lobbyNote : setStatus))("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false);
+    });
+  }
+  function wireCall(cl) {
+    cl.on("stream", (s) => showRemote(s));
+    cl.on("close", () => clearRemote("Your partner's video stopped."));
+    cl.on("error", () => setStatus("The video connection dropped. Try Leave and join again.", true));
+    const pc = cl.peerConnection;
+    if (pc) pc.addEventListener("iceconnectionstatechange", () => {
+      if (pc.iceConnectionState === "failed") setStatus("Couldn't connect your videos directly. Try both of you on Wi-Fi.", true);
+    });
+  }
+  function wireConn(c) {
+    conn = c;
+    c.on("open", () => {
+      setPill("on", "Connected"); $("shootBtn").disabled = false;
+      setStatus(mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
+      if (mySide === "A") send({ t: "settings", s: settingsPayload() });
+    });
+    c.on("data", onData);
+    c.on("close", () => {
+      if (conn === c) { conn = null; setPill("wait", "Partner left"); $("shootBtn").disabled = true; clearRemote("Your partner left. They can join again with the same code."); setStatus("Your partner left the booth."); }
+    });
+  }
+  function send(m) { if (conn && conn.open) { try { conn.send(m); } catch (e) { setStatus("Couldn't send to your partner.", true); } } }
+
+  /* ---------- settings sync ---------- */
+  function settingsPayload() {
+    return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, caption: state.caption,
+      capHl: state.capHl, poseMode, posePrint, picks: { classic: picks.classic.slice(), meme: picks.meme.slice() } };
+  }
+  function sendSettings() { send({ t: "settings", s: settingsPayload() }); }
+  let capTimer; function sendSettingsSoon() { clearTimeout(capTimer); capTimer = setTimeout(sendSettings, 350); }
+  const okPicks = (a, len) => Array.isArray(a) && a.length === 4 && a.every((v) => Number.isInteger(v) && v >= 0 && v < len);
+  function applySettings(d) {
+    if (!d || typeof d !== "object") return;
+    if (LAYOUTS[d.layout] && !busy) state.layout = d.layout;
+    if (FILTERS[d.filter]) state.filter = d.filter;
+    if (Number.isInteger(d.frame) && FRAMES[d.frame]) state.frame = d.frame;
+    if (THEMES[d.theme]) state.theme = d.theme;
+    if (typeof d.caption === "string" && document.activeElement !== $("caption")) state.caption = d.caption.slice(0, 28);
+    if (typeof d.capHl === "boolean") state.capHl = d.capHl;
+    if (["off", "classic", "meme"].includes(d.poseMode)) poseMode = d.poseMode;
+    if (typeof d.posePrint === "boolean") posePrint = d.posePrint;
+    if (d.picks) { if (okPicks(d.picks.classic, CLASSIC.length)) picks.classic = d.picks.classic.slice(); if (okPicks(d.picks.meme, MEME.length)) picks.meme = d.picks.meme.slice(); }
+    changed(true);
+  }
+
+  /* ---------- shots ---------- */
+  function frameFrom(video) {
+    const w = video.videoWidth, h = video.videoHeight; if (!w || !h) return null;
+    const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(video, 0, 0, w, h);
+    return c;
+  }
+  function toShot(c) {
+    const t = document.createElement("canvas"), ts = 220 / Math.max(c.width, c.height);
+    t.width = Math.round(c.width * ts); t.height = Math.round(c.height * ts); t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+    return { canvas: c, thumb: t.toDataURL("image/jpeg", .8) };
+  }
+  function encode(c) {
+    const s = Math.min(1, 1100 / Math.max(c.width, c.height)), t = document.createElement("canvas");
+    t.width = Math.round(c.width * s); t.height = Math.round(c.height * s); t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+    return t.toDataURL("image/jpeg", .85);
+  }
+  function decode(url) {
+    if (typeof url !== "string" || !url.startsWith("data:image/jpeg;base64,") || url.length > 3000000) return Promise.resolve(null);
+    return new Promise((res) => { const im = new Image(); im.onload = () => { const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0); res(toShot(c)); }; im.onerror = () => res(null); im.src = url; });
+  }
+  async function onData(m) {
+    if (!m || typeof m !== "object") return;
+    if (m.t === "settings") applySettings(m.s);
+    else if (m.t === "start") { if (!busy) runSession(false, m.n); }
+    else if (m.t === "shot" && Number.isInteger(m.i) && m.i >= 0 && m.i < 4) {
+      const p = await decode(m.img); if (!p) return;
+      sideArr(otherSide())[m.i] = p; render(); renderThumbs();
+    } else if (m.t === "full") { setStatus("That booth already has two people.", true); }
+  }
+  function overlay(html) { $("overlay").innerHTML = html; }
+  function poseCardHTML(i, n) {
+    const head = `<small>Shot ${i + 1} of ${n}</small>`;
+    if (poseMode === "off") return `<div class="pose-pop">${head}<b>Strike a pose!</b></div>`;
+    if (poseMode === "meme") { const f = MEME[picks.meme[i]]; return `<div class="pose-pop"><div class="art">${figureSVG(f, "#111413", "#ffffff")}</div>${head}<b>${f.name}</b></div>`; }
+    const c = CLASSIC[picks.classic[i]]; return `<div class="pose-pop"><div class="art"><span class="emo">${c[0]}</span></div>${head}<b>${c[1]}</b></div>`;
+  }
+  async function runSession(local, nRemote) {
+    if (busy) return;
+    const n = LAYOUTS[state.layout].n;
+    if (local) send({ t: "start", n });
+    busy = true; $("shootBtn").disabled = true; buildUI();
+    for (const sd of ["A", "B"]) for (let i = 0; i < 4; i++) sideArr(sd)[i] = null;
+    render(); renderThumbs();
+    const total = nRemote || n;
+    for (let i = 0; i < total; i++) {
+      overlay(poseCardHTML(i, total)); setStatus(`Shot ${i + 1} of ${total}: get ready.`);
+      await sleep(1800);
+      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); await sleep(800); }
+      overlay("");
+      const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
+      const mine = frameFrom(localVideo());
+      if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
+      render(); renderThumbs();
+      const idx = i;
+      setTimeout(() => { // backup: if the partner's photo never arrives, use a frame from their live video
+        if (!sideArr(otherSide())[idx] && remoteVideo().srcObject) { const c = frameFrom(remoteVideo()); if (c) { sideArr(otherSide())[idx] = toShot(c); render(); renderThumbs(); } }
+      }, 6000);
+      await sleep(900);
+    }
+    busy = false; $("shootBtn").disabled = !(conn && conn.open); buildUI();
+    setStatus("Done! Your print is ready. Save it, or tap Start to shoot again.");
+    $("strip").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  $("shootBtn").addEventListener("click", () => runSession(true));
+
+  /* ---------- save / share ---------- */
+  function fileName() {
+    const d = new Date(), st = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return ((state.caption.trim() || "flashbulb").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flashbulb") + "-" + st + ".png";
+  }
+  $("saveBtn").addEventListener("click", () => {
+    render();
+    canvas.toBlob((b) => {
+      if (!b) { setStatus("Couldn't make the image. Try again.", true); return; }
+      const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = fileName(); document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); setStatus("Saved your print.");
+    }, "image/png");
+  });
+  $("shareImgBtn").addEventListener("click", () => {
+    render();
+    canvas.toBlob(async (b) => {
+      const file = new File([b], fileName(), { type: "image/png" });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: state.caption });
+        else setStatus("Sharing pictures isn't supported here. Use Save print instead.");
+      } catch (e) { if (e && e.name !== "AbortError") setStatus("Couldn't share the print.", true); }
+    }, "image/png");
+  });
+  $("shareBtn").addEventListener("click", async () => {
+    const url = `${location.origin}${location.pathname}?join=${code}`;
+    try { if (navigator.share) { await navigator.share({ title: "Join my photo booth", text: `Join my Flashbulb booth. Code: ${code}`, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(url); setStatus("Link copied. Send it to your partner."); } catch { setStatus(`Send your partner this link: ${url}`); }
+  });
+
+  /* ---------- leave ---------- */
+  function stopAll() {
+    try { if (call) call.close(); } catch {} try { if (conn) conn.close(); } catch {} try { if (peer) peer.destroy(); } catch {}
+    call = conn = peer = null;
+    if (localStream) localStream.getTracks().forEach((t) => t.stop()); localStream = null;
+  }
+  $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
+  window.addEventListener("pagehide", stopAll);
+
+  $("startBtn").addEventListener("click", startBooth);
+  $("joinBtn").addEventListener("click", joinBooth);
+  $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
+  const pre = (params.get("join") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  if (pre) { $("joinCode").value = pre; lobbyNote("Your partner invited you. Tap Join and allow your camera."); $("joinBtn").focus(); }
+  if (!window.isSecureContext) lobbyNote("Open this page over https (a secure link) so the camera can turn on.", true);
+
+  buildUI(); render();
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 42px "Comfortaa"'), document.fonts.load('500 16px "Urbanist"')]).then(render, () => {});
+})();
+</script>
+</body>
+</html>

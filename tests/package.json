@@ -1,0 +1,13 @@
+{
+  "name": "flashbulb-live-tests",
+  "private": true,
+  "description": "End-to-end test: two browsers with fake cameras shoot a strip together.",
+  "scripts": {
+    "test": "node e2e.js"
+  },
+  "devDependencies": {
+    "peer": "1.0.2",
+    "peerjs": "1.5.4",
+    "playwright": "^1.50.0"
+  }
+}
