@@ -117,7 +117,9 @@ async function makeFaceVideo(browser) {
   // synced 4-shot session started by the partner
   await B.click('#shootBtn');
   await A.waitForTimeout(1000);
-  check('Host gets the same pose card', (await A.locator('.pose-pop b').textContent().catch(() => '')) === (await B.locator('.pose-pop b').textContent().catch(() => '-')), await A.locator('.pose-pop b').textContent().catch(() => 'none'));
+  const posA = await A.locator('#poseRail [aria-pressed=true] b').textContent().catch(() => ''), posB = await B.locator('#poseRail [aria-pressed=true] b').textContent().catch(() => '-');
+  check('Both see the same pose beside the camera', posA === posB && posA !== '', posA);
+  check('No pose pop-up covers the camera', (await A.locator('.pose-pop').count()) === 0);
   await A.waitForTimeout(2300);
   await A.screenshot({ path: OUT + '/countdown-host.png' }); await B.screenshot({ path: OUT + '/countdown-partner.png' });
   await A.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 40000 });
@@ -181,9 +183,11 @@ async function makeFaceVideo(browser) {
   await J.click('#tabBtn-look');
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
-  check('Just me shows the pose card', await J.isVisible('.pose-pop'));
+  check('Countdown keeps the pose beside the camera (no pop-up)', (await J.locator('.pose-pop').count()) === 0 && await J.isVisible('#poseRail'));
   check('Shot 1 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(0).getAttribute('aria-pressed')) === 'true');
-  await J.waitForTimeout(5600);
+  await J.waitForTimeout(3000);
+  check('The pose is still beside the camera during 3-2-1', await J.isVisible('#poseRail .rail-card[aria-pressed=true]') && (await J.locator('.count').count()) === 1 && (await J.locator('.pose-pop').count()) === 0);
+  await J.waitForTimeout(2600);
   check('Shot 2 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(1).getAttribute('aria-pressed')) === 'true');
   await J.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 40000 });
   check('Just me takes 4 photos', (await J.evaluate(() => document.querySelectorAll('#thumbs img').length)) === 4);
@@ -205,9 +209,10 @@ async function makeFaceVideo(browser) {
   await PH.click('#themeBtn'); await PH.reload(); await PH.waitForTimeout(300);
   check('Sun button switches back to white', (await bgOf()) === 'rgb(243, 244, 242)');
   await PH.click('#soloBtn'); await PH.waitForSelector('#booth:not([hidden])', { timeout: 10000 });
-  check('Phone: picked pose floats on the camera', await PH.isVisible('#posePeek') && !(await PH.isVisible('#poseRail')));
-  const peek1 = await PH.textContent('#posePeek b'); await PH.click('#posePeek');
-  check('Phone: tapping it shows the next pose', (await PH.textContent('#posePeek small')).startsWith('Shot 2') && (await PH.textContent('#posePeek b')) !== peek1);
+  const side = await PH.evaluate(() => { const s = document.getElementById('stage').getBoundingClientRect(), r = document.getElementById('poseRail').getBoundingClientRect(); return { beside: r.left >= s.right - 1 && r.top < s.bottom && r.bottom > s.top, w: Math.round(r.width) }; });
+  check('Phone: poses sit beside the camera', await PH.isVisible('#poseRail') && side.beside, `rail ${side.w}px wide`);
+  await PH.locator('#poseRail .rail-card').nth(1).click();
+  check('Phone: tapping a pose beside the camera picks it', (await PH.locator('#poseRail .rail-card').nth(1).getAttribute('aria-pressed')) === 'true');
   check('Phone: no sideways scroll in the booth', (await PH.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await PH.screenshot({ path: OUT + '/phone-booth-light.png' });
 
@@ -247,7 +252,8 @@ async function makeFaceVideo(browser) {
   const F = await mkF('Faces');
   await F.goto('http://localhost:8080/index.html' + q); await F.click('#soloBtn');
   await F.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 15000 });
-  check('Face stickers row shows 11 choices', (await F.locator('#fxBar .fx').count()) === 11);
+  check('Face stickers row shows 19 choices', (await F.locator('#fxBar .fx').count()) === 19);
+  check('Sticker buttons show the artwork', (await F.locator('#fxBar .fx img.e').count()) === 15);
   const before = await ears(F, 'vidA');
   await F.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
   await F.waitForFunction(() => +(document.getElementById('stage').dataset.faces || 0) > 0, null, { timeout: 30000 }).catch(() => {});
@@ -259,7 +265,16 @@ async function makeFaceVideo(browser) {
   check('Stickers follow the face as it moves', moved > 8, `moved ${Math.round(moved)}px`);
   let flicker = 0, extra = 0; for (let k = 0; k < 10; k++) { await F.waitForTimeout(300); const n = (await ears(F, 'vidA')).n; if (n < before.n + 1000) flicker++; if (+(await F.evaluate(() => document.getElementById('stage').dataset.faces)) > 1) extra++; }
   check('Stickers stay on steadily (no flicker, no phantom faces)', flicker <= 1 && extra === 0, `${flicker}/10 missing, ${extra}/10 extra faces`);
-  for (const name of ['Crown', 'Kitty', 'Shades', 'In love', 'Party', 'Santa hat', 'Flowers', 'Dizzy', 'Blush']) { await F.locator('#fxBar .fx', { hasText: name }).click(); await F.waitForTimeout(250); }
+  // gold pixels from the Fluent crown above the face
+  const gold = () => F.evaluate(() => { const v = document.getElementById('vidA'), c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; const g = c.getContext('2d'); g.drawImage(v, 0, 0); const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (d[i] > 220 && d[i + 1] > 140 && d[i + 1] < 200 && d[i + 2] < 90) n++; return n; });
+  await F.locator('#fxBar .fx', { hasText: 'Off' }).click(); await F.waitForTimeout(400); const gold0 = await gold();
+  await F.locator('#fxBar .fx', { hasText: 'Crown' }).click(); await F.waitForTimeout(1200); const gold1 = await gold();
+  check('Fluent 3D crown sits on the head', gold1 > gold0 + 400, `${gold0} -> ${gold1} gold pixels`);
+  await F.screenshot({ path: OUT + '/stickers-crown.png' });
+  const names = ['Shades', 'Glasses', 'Top hat', 'Cap', 'Grad cap', 'Sun hat', 'Bow', 'Flowers', 'In love', 'Party', 'Dizzy', 'Sparkle', 'On fire', 'Butterflies', 'Kitty', 'Santa hat'];
+  for (const name of names) { await F.locator('#fxBar').getByRole('button', { name, exact: true }).click(); await F.waitForTimeout(700); await F.locator('#stage').screenshot({ path: OUT + '/sticker-' + name.toLowerCase().replace(/[^a-z]+/g, '-') + '.png' }); }
+  const loaded = await F.evaluate(() => performance.getEntriesByType('resource').filter((r) => r.name.includes('/assets/stickers/')).length);
+  check('Sticker artwork loads (Fluent + Noto)', loaded >= 20, `${loaded} files`);
   check('Every sticker draws without errors', !errs.some((x) => x.startsWith('Faces')));
   await F.locator('#fxBar .fx', { hasText: 'Santa hat' }).click(); await F.waitForTimeout(600);
   await F.screenshot({ path: OUT + '/stickers-santa.png' });

@@ -32,14 +32,13 @@ After you've opened the booth once, **Just me** and **Use my photos** keep worki
 
 ## Face stickers
 
-Pick a sticker under the camera and it follows your face as you move, like the filters in photo booth apps. It also tracks more than one face in the frame.
+Pick a sticker under the camera and it follows your face as you move, like the filters in photo booth apps. It works with more than one face in the frame.
 
-👑 Crown · 🐶 Puppy · 🐱 Kitty · 🕶️ Shades · 😍 In love · 🥳 Party · 🎅 Santa hat · 🌸 Flowers · 💫 Dizzy · 😊 Blush
+- **3D accessories** ([Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by Microsoft, MIT): 👑 Crown · 🕶️ Shades · 👓 Glasses · 🎩 Top hat · 🧢 Cap · 🎓 Grad cap · 👒 Sun hat · 🎀 Bow · 🌸 Flower crown
+- **Animated effects** ([Noto Animated Emoji](https://googlefonts.github.io/noto-emoji-animation/) by Google, CC BY 4.0): 💖 In love · 🎉 Party · 💫 Dizzy · ✨ Sparkle · 🔥 On fire · 🦋 Butterflies
+- **Drawn:** 🐶 Puppy · 🐱 Kitty · 🎅 Santa hat
 
-- **Animated live:** the puppy's tongue wiggles, hearts float up, confetti falls and stars circle your head.
-- **In your photos:** stickers are part of every shot on the print.
-- **Seen by your partner:** in Together, your partner sees your stickers live, and you each pick your own.
-- **Private:** face tracking runs on your phone with [face-api](https://github.com/vladmandic/face-api) (MIT license). No video is uploaded, and it works offline.
+Stickers show in your preview, in every photo on the print and, in Together, on your partner's screen (you each pick your own). Face tracking runs on your phone with [face-api](https://github.com/vladmandic/face-api) (MIT). No video is uploaded, and it all works offline. Full credits are in [`assets/stickers/CREDITS.md`](assets/stickers/CREDITS.md).
 
 ![Puppy sticker following a face](docs/stickers.png)
 
@@ -51,7 +50,7 @@ Pick a sticker under the camera and it follows your face as you move, like the f
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
-- **Poses beside the camera:** the poses for your shots sit next to the camera, so you can see what's coming. Tap one to pick it. During shooting, the current shot's pose lights up. On phones, the picked pose floats in the corner of the camera, and tapping it shows the next one.
+- **Poses beside the camera:** the poses for your shots sit in a column next to the camera, on phones too. Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
 - **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption
 - **Synced settings in Together:** whatever either person changes appears on both screens
@@ -81,6 +80,7 @@ Any other static host works too, for example Netlify or Cloudflare Pages. The wh
 | `index.html` | The main booth: start page, Just me and Together (HTML, CSS and JavaScript in one file) |
 | `solo/index.html` | Use my photos: build a strip from photos you already have, with the same layouts, looks, seasons and poses |
 | `sw.js` | Keeps the booth working offline after the first visit |
+| `assets/stickers/` | Sticker artwork: Fluent Emoji 3D accessories and Noto animated emoji (see `CREDITS.md`) |
 | `vendor/face-api/` | Face tracking for the stickers ([face-api](https://github.com/vladmandic/face-api), MIT license) and its two small models |
 | `manifest.webmanifest`, `icons/` | Lets phones install the booth like an app |
 | `tests/` | End-to-end test for both booths |

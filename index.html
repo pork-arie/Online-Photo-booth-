@@ -125,6 +125,7 @@ h1.display em { font-style: normal; color: var(--accent); }
 .fxbar { display: flex; gap: 8px; overflow-x: auto; padding: 4px 2px 8px; scrollbar-width: thin; min-width: 0; -webkit-overflow-scrolling: touch; }
 .fx { flex: none; appearance: none; border: 1px solid var(--line); background: var(--surface); border-radius: 14px; padding: 8px 10px 7px; min-width: 70px; display: grid; justify-items: center; gap: 3px; cursor: pointer; font: 600 11.5px var(--font-body); color: var(--muted); }
 .fx .e { font-size: 26px; line-height: 1.1; font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.fx img.e { width: 32px; height: 32px; object-fit: contain; display: block; }
 .fx:hover { border-color: var(--muted); }
 .fx[aria-pressed="true"] { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .nav-right { display: flex; align-items: center; gap: 10px; }
@@ -145,17 +146,19 @@ h1.display em { font-style: normal; color: var(--accent); }
 .rail-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); transform: scale(1.03); }
 .rail-card[aria-pressed="true"] svg { width: 72px; height: 64px; }
 .rail-card[aria-pressed="true"] small { color: var(--accent); }
-.peek { position: absolute; top: 10px; right: 10px; z-index: 2; appearance: none; border: 0; cursor: pointer; display: none; justify-items: center; gap: 1px; background: rgba(255,255,255,.95); color: #111413; border-radius: 14px; padding: 6px 10px 8px; box-shadow: 0 8px 24px -8px rgba(0,0,0,.45); font: inherit; max-width: 46%; }
-.peek svg { width: 54px; height: 48px; color: #111413; }
-.peek .emo { font-size: 28px; line-height: 1.1; }
-.peek small { font: 600 9.5px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: #1F5C4A; }
-.peek b { font: 700 12px/1.15 var(--font-display); }
+.rail.live .rail-card[aria-pressed="true"] { animation: posePulse 1s ease-in-out infinite; }
+@keyframes posePulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent); } }
 @media (max-width: 900px) {
-  .stage-row { grid-template-columns: minmax(0, 1fr); }
-  .rail { display: none !important; }
-  .peek { display: grid; }
+  .stage-row { grid-template-columns: minmax(0, 1fr) 92px; gap: 8px; }
+  .rail { gap: 6px; }
+  .rail-card { padding: 4px; border-radius: 12px; }
+  .rail-card svg { width: 44px; height: 40px; }
+  .rail-card[aria-pressed="true"] svg { width: 56px; height: 50px; }
+  .rail-card .emo { font-size: 24px; }
+  .rail-card small { font-size: 8.5px; letter-spacing: .06em; }
+  .rail-card b { font-size: 11px; }
 }
-@media (prefers-reduced-motion: reduce) { .rail-card { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .rail-card { transition: none; } .rail.live .rail-card[aria-pressed="true"] { animation: none; } }
 .side { display: grid; gap: 18px; min-width: 0; }
 .tabs { display: flex; gap: 4px; padding: 4px; background: var(--sunk); border-radius: 999px; }
 .tab { flex: 1; appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 14px var(--font-body); min-height: 40px; border-radius: 999px; cursor: pointer; }
@@ -271,7 +274,6 @@ h1.display em { font-style: normal; color: var(--accent); }
       <div class="stage" id="stage">
         <div class="tile" id="tileA"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
         <div class="tile" id="tileB"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
-        <button class="peek" id="posePeek" type="button" hidden aria-label="Selected pose. Tap for the next one."></button>
         <div class="overlay" id="overlay"></div>
         <div class="flash" id="flash"></div>
       </div>
@@ -778,8 +780,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     }
   }
   function renderRail() {
-    const n = LAYOUTS[state.layout].n, on = poseMode !== "off", rail = $("poseRail"), peek = $("posePeek");
-    $("stageRow").classList.toggle("no-rail", !on); rail.hidden = !on; peek.hidden = !on;
+    const n = LAYOUTS[state.layout].n, on = poseMode !== "off", rail = $("poseRail");
+    $("stageRow").classList.toggle("no-rail", !on); rail.hidden = !on;
     if (!on) return;
     if (selPose >= n) selPose = 0;
     rail.innerHTML = "";
@@ -791,10 +793,7 @@ h1.display em { font-style: normal; color: var(--accent); }
       b.addEventListener("click", () => pickPose(i));
       rail.appendChild(b);
     }
-    const p = poseInfo(selPose);
-    peek.innerHTML = `${p.art}<small>Shot ${selPose + 1} of ${n}</small><b></b>`; peek.querySelector("b").textContent = p.name;
   }
-  $("posePeek").addEventListener("click", () => pickPose((selPose + 1) % LAYOUTS[state.layout].n));
   // light / dark switch (white by default)
   function setTheme(t) {
     document.documentElement.dataset.theme = t;
@@ -829,10 +828,31 @@ h1.display em { font-style: normal; color: var(--accent); }
 
   /* ---------- Face stickers: live decorations that follow each face ---------- */
   // The camera is drawn onto a canvas with the stickers, and that canvas is what you see, what your partner sees, and what the photos capture.
-  const FX = [
-    ["none", "Off", "🚫"], ["crown", "Crown", "👑"], ["puppy", "Puppy", "🐶"], ["kitty", "Kitty", "🐱"], ["shades", "Shades", "🕶️"],
-    ["hearts", "In love", "😍"], ["party", "Party", "🥳"], ["santa", "Santa hat", "🎅"], ["flowers", "Flowers", "🌸"], ["stars", "Dizzy", "💫"], ["blush", "Blush", "😊"],
+  const FL = (n) => `assets/stickers/fluent/${n}.png`, NI = (n) => `assets/stickers/noto/${n}-icon.png`;
+  const FX = [ // [id, label, button icon (image path or emoji)]
+    ["none", "Off", "🚫"],
+    ["crown", "Crown", FL("crown")], ["shades", "Shades", FL("sunglasses")], ["glasses", "Glasses", FL("glasses")],
+    ["tophat", "Top hat", FL("top_hat")], ["cap", "Cap", FL("billed_cap")], ["grad", "Grad cap", FL("graduation_cap")],
+    ["sunhat", "Sun hat", FL("womans_hat")], ["bow", "Bow", FL("ribbon")], ["flowers", "Flowers", FL("cherry_blossom")],
+    ["love", "In love", NI("sparkling_heart")], ["party", "Party", NI("party_popper")], ["dizzy", "Dizzy", NI("dizzy")],
+    ["sparkle", "Sparkle", NI("sparkles")], ["fire", "On fire", NI("fire")], ["butterflies", "Butterflies", NI("butterfly")],
+    ["puppy", "Puppy", "🐶"], ["kitty", "Kitty", "🐱"], ["santa", "Santa hat", "🎅"],
   ];
+  // Noto animations are stored as strips of frames: frame count, frame size and time per frame.
+  const ANIM = { sparkling_heart: 50, party_popper: 69, dizzy: 59, glowing_star: 89, sparkles: 101, fire: 54, butterfly: 139, red_heart: 92 };
+  const imgCache = {};
+  function img(src) {
+    let im = imgCache[src];
+    if (!im) { im = new Image(); im.decoding = "async"; im.src = src; imgCache[src] = im; }
+    return im.complete && im.naturalWidth ? im : null;
+  }
+  const NEEDS = {
+    crown: [FL("crown")], shades: [FL("sunglasses")], glasses: [FL("glasses")], tophat: [FL("top_hat")], cap: [FL("billed_cap")],
+    grad: [FL("graduation_cap")], sunhat: [FL("womans_hat")], bow: [FL("ribbon")], flowers: [FL("cherry_blossom"), FL("hibiscus"), FL("blossom")],
+    love: ["sparkling_heart", "red_heart"], party: ["party_popper"], dizzy: ["dizzy", "glowing_star"], sparkle: ["sparkles"], fire: ["fire"], butterflies: ["butterfly"],
+  };
+  const sheet = (name) => `assets/stickers/noto/${name}.webp`;
+  function preloadSticker(k) { (NEEDS[k] || []).forEach((x) => img(x.includes("/") ? x : sheet(x))); }
   const EMOJI_FONT = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
   let fx = "none";
   try { const v = localStorage.getItem("fb-fx"); if (FX.some((f) => f[0] === v)) fx = v; } catch {}
@@ -853,7 +873,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     pipelineOn = typeof fxCanvas.captureStream === "function";
     if (!pipelineOn) return cam;
     cancelAnimationFrame(fxRaf); fxLoop();
-    if (fx !== "none") loadFaces();
+    if (fx !== "none") { preloadSticker(fx); loadFaces(); }
     return new MediaStream([fxCanvas.captureStream(30).getVideoTracks()[0], ...cam.getAudioTracks()]);
   }
   function fxLoop() {
@@ -928,8 +948,86 @@ h1.display em { font-style: normal; color: var(--accent); }
     g.bezierCurveTo(x - s * 1.1, y - s * .45, x - s * .45, y - s * 1.05, x, y - s * .45);
     g.bezierCurveTo(x + s * .45, y - s * 1.05, x + s * 1.1, y - s * .45, x, y + s * .35); g.closePath();
   }
+  // Content box of each Fluent image (fractions of the image), so accessories line up by what's drawn, not by empty space.
+  const BOX = {
+    crown: [.066, .22, .937, .934], sunglasses: [.059, .313, .938, .66], glasses: [.063, .313, .938, .656], top_hat: [.066, .121, .934, .941],
+    billed_cap: [.055, .195, .938, .785], graduation_cap: [.063, .16, .938, .941], womans_hat: [.063, .309, .938, .938], ribbon: [.059, .191, .938, .938],
+  };
+  // Place a Fluent accessory: `w` is its drawn width in eye-distances; anchor "bottom" puts its lowest edge at y, "center" centres it on y.
+  function wear(g, name, f, w, y, anchor = "bottom", x = 0, rot = 0) {
+    const im = img(FL(name)); if (!im) return;
+    const [x1, y1, x2, y2] = BOX[name] || [0, 0, 1, 1], sc = (w * f.e) / ((x2 - x1) * im.naturalWidth);
+    const W = im.naturalWidth * sc, H = im.naturalHeight * sc, cx = ((x1 + x2) / 2) * W, cy = anchor === "bottom" ? y2 * H : ((y1 + y2) / 2) * H;
+    g.save(); g.translate(x, y * f.e); if (rot) g.rotate(rot); g.drawImage(im, -cx, -cy, W, H); g.restore();
+  }
+  // Draw one frame of a Noto animation strip, centred at (x, y), `size` pixels wide.
+  function anim(g, name, x, y, size, t, phase = 0, flip = false) {
+    const im = img(sheet(name)); if (!im) return;
+    const fs = im.naturalHeight, n = Math.round(im.naturalWidth / fs), k = Math.floor(t * 1000 / ANIM[name] + phase * n) % n;
+    g.save(); g.translate(x, y); if (flip) g.scale(-1, 1); g.drawImage(im, k * fs, 0, fs, fs, -size / 2, -size / 2, size, size); g.restore();
+  }
   const STICKERS = {
-    crown(g, f, t) { emoji(g, "👑", 0, -1.55 * f.e + Math.sin(t * 3) * .05 * f.e, 1.5 * f.e); },
+    crown(g, f, t) { wear(g, "crown", f, 1.95, -1.22 + Math.sin(t * 3) * .03); },
+    shades(g, f) { wear(g, "sunglasses", f, 2.35, .04, "center"); },
+    glasses(g, f) { wear(g, "glasses", f, 2.25, .04, "center"); },
+    tophat(g, f) { wear(g, "top_hat", f, 2.15, -1.1); },
+    cap(g, f) { wear(g, "billed_cap", f, 2.5, -.62); },
+    grad(g, f) { wear(g, "graduation_cap", f, 2.3, -.95); },
+    sunhat(g, f) { wear(g, "womans_hat", f, 2.8, -.75); },
+    bow(g, f, t) { wear(g, "ribbon", f, 1.25, -1.1, "bottom", .85 * f.e, .3 + Math.sin(t * 2) * .03); },
+    flowers(g, f) {
+      const list = ["cherry_blossom", "hibiscus", "blossom", "cherry_blossom", "blossom", "hibiscus", "cherry_blossom"];
+      list.forEach((n, k) => {
+        const im = img(FL(n)); if (!im) return;
+        const a = Math.PI * (1.12 + k * .76 / (list.length - 1)), r = 1.3 * f.e, size = .78 * f.e;
+        g.save(); g.translate(Math.cos(a) * r, -.3 * f.e + Math.sin(a) * r * .75); g.rotate((k - 3) * .15); g.drawImage(im, -size / 2, -size / 2, size, size); g.restore();
+      });
+    },
+    love(g, f, t) {
+      const e = f.e;
+      [-1, 1].forEach((sd, k) => anim(g, "sparkling_heart", sd * .5 * e, .02 * e, .82 * e, t, k * .5));
+      for (let k = 0; k < 4; k++) {
+        const ph = (t * .4 + k / 4) % 1;
+        g.globalAlpha = 1 - ph; anim(g, "red_heart", (k - 1.5) * .8 * e + Math.sin(t * 2 + k) * .12 * e, -.8 * e - ph * 1.8 * e, .62 * e, t, k / 4);
+      }
+      g.globalAlpha = 1;
+    },
+    party(g, f, t) {
+      const e = f.e;
+      anim(g, "party_popper", -1.6 * e, -1.05 * e, 1.55 * e, t, 0, true);
+      anim(g, "party_popper", 1.6 * e, -1.05 * e, 1.55 * e, t, .5);
+      const cols = ["#FF006E", "#FFBE0B", "#3A86FF", "#8338EC", "#06D6A0"];
+      for (let k = 0; k < 16; k++) {
+        const ph = (t * .35 + k / 16) % 1, x = ((k * 37) % 32 - 16) / 16 * 1.9 * e, y = -2.4 * e + ph * 3.4 * e;
+        g.save(); g.translate(x, y); g.rotate(t * 3 + k); g.fillStyle = cols[k % 5]; g.fillRect(-.07 * e, -.03 * e, .14 * e, .06 * e); g.restore();
+      }
+    },
+    dizzy(g, f, t) {
+      const e = f.e;
+      for (let k = 0; k < 5; k++) {
+        const a = t * 2 + k * Math.PI * 2 / 5, depth = (Math.sin(a) + 1) / 2;
+        g.globalAlpha = .6 + depth * .4;
+        anim(g, k % 2 ? "glowing_star" : "dizzy", Math.cos(a) * 1.45 * e, -1.25 * e + Math.sin(a) * .35 * e, (.7 + depth * .25) * e, t, k / 5);
+      }
+      g.globalAlpha = 1;
+    },
+    sparkle(g, f, t) {
+      const e = f.e;
+      [-1, 1].forEach((sd) => {
+        const gr = g.createRadialGradient(sd * .78 * e, f.nd + .1 * e, 0, sd * .78 * e, f.nd + .1 * e, .42 * e);
+        gr.addColorStop(0, "rgba(255,105,140,.45)"); gr.addColorStop(1, "rgba(255,105,140,0)"); g.fillStyle = gr;
+        g.beginPath(); g.arc(sd * .78 * e, f.nd + .1 * e, .42 * e, 0, 7); g.fill();
+      });
+      [[-1.35, -.75, 0], [1.3, -.95, .33], [1.4, .3, .66], [-1.25, .55, .2]].forEach(([x, y, ph]) => anim(g, "sparkles", x * e, y * e, .95 * e, t, ph));
+    },
+    fire(g, f, t) { [[-.8, -1.6, 1.1, 0], [0, -1.95, 1.45, .4], [.8, -1.6, 1.1, .7]].forEach(([x, y, sz, ph]) => anim(g, "fire", x * f.e, y * f.e, sz * f.e, t, ph)); },
+    butterflies(g, f, t) {
+      const e = f.e;
+      for (let k = 0; k < 3; k++) {
+        const a = t * (.8 + k * .15) + k * 2.1;
+        anim(g, "butterfly", Math.cos(a) * 1.6 * e, -.9 * e + Math.sin(a * 1.6) * .75 * e, 1.05 * e, t, k / 3, Math.sin(a) > 0);
+      }
+    },
     puppy(g, f, t) {
       const e = f.e;
       [-1, 1].forEach((s) => {
@@ -957,68 +1055,12 @@ h1.display em { font-style: normal; color: var(--accent); }
         g.beginPath(); g.moveTo(s * .3 * e, f.nd + .08 * e); g.lineTo(s * 1.25 * e, f.nd + (dy + (k - 1) * .06) * e + Math.sin(t * 3 + k) * .02 * e); g.stroke();
       }));
     },
-    shades(g, f) {
-      const e = f.e, w = .9 * e, h = .52 * e;
-      g.strokeStyle = "#111"; g.lineWidth = .08 * e; g.beginPath(); g.moveTo(-.12 * e, -.05 * e); g.quadraticCurveTo(0, -.15 * e, .12 * e, -.05 * e); g.stroke();
-      g.beginPath(); g.moveTo(-.5 * e - w / 2, -.08 * e); g.lineTo(-1.25 * e, -.15 * e); g.moveTo(.5 * e + w / 2, -.08 * e); g.lineTo(1.25 * e, -.15 * e); g.stroke();
-      [-1, 1].forEach((s) => {
-        const cx = s * .5 * e, gr = g.createLinearGradient(cx, -h / 2, cx, h / 2);
-        gr.addColorStop(0, "#2B2F36"); gr.addColorStop(1, "#050608");
-        g.fillStyle = gr; g.beginPath(); g.roundRect ? g.roundRect(cx - w / 2, -h / 2, w, h, .2 * e) : g.rect(cx - w / 2, -h / 2, w, h); g.fill();
-        g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = .05 * e; g.beginPath(); g.moveTo(cx - w * .3, -h * .15); g.lineTo(cx - w * .05, -h * .38); g.stroke();
-      });
-    },
-    hearts(g, f, t) {
-      const e = f.e, pulse = 1 + Math.sin(t * 6) * .12;
-      [-1, 1].forEach((s) => { g.fillStyle = "#E8344E"; heartPath(g, s * .5 * e, .05 * e, .42 * e * pulse); g.fill(); });
-      for (let k = 0; k < 6; k++) {
-        const ph = (t * .45 + k / 6) % 1, x = (k - 2.5) * .5 * e + Math.sin(t * 2 + k) * .12 * e, y = -.7 * e - ph * 1.8 * e;
-        g.globalAlpha = 1 - ph; g.fillStyle = k % 2 ? "#FF8FA3" : "#E8344E"; heartPath(g, x, y, .18 * e); g.fill();
-      }
-      g.globalAlpha = 1;
-    },
-    party(g, f, t) {
-      const e = f.e;
-      g.save(); g.translate(.15 * e, -1.25 * e); g.rotate(.18);
-      const h = 1.5 * e, b = .95 * e;
-      g.fillStyle = "#3A86FF"; g.beginPath(); g.moveTo(-b / 2, 0); g.lineTo(0, -h); g.lineTo(b / 2, 0); g.closePath(); g.fill();
-      g.save(); g.clip();
-      ["#FFBE0B", "#FF006E", "#FFBE0B"].forEach((c, k) => { g.fillStyle = c; g.fillRect(-b, -h * (k * .3 + .2), b * 2, h * .1); });
-      g.restore();
-      g.fillStyle = "#FF006E"; g.beginPath(); g.arc(0, -h, .14 * e, 0, 7); g.fill(); g.restore();
-      const cols = ["#FF006E", "#FFBE0B", "#3A86FF", "#8338EC", "#06D6A0"];
-      for (let k = 0; k < 18; k++) {
-        const ph = (t * .35 + k / 18) % 1, x = ((k * 37) % 36 - 18) / 18 * 1.9 * e + Math.sin(t * 2 + k) * .1 * e, y = -2.4 * e + ph * 3.6 * e;
-        g.save(); g.translate(x, y); g.rotate(t * 3 + k); g.fillStyle = cols[k % 5]; g.globalAlpha = .9; g.fillRect(-.07 * e, -.03 * e, .14 * e, .06 * e); g.restore();
-      }
-    },
     santa(g, f, t) {
       const e = f.e, sway = Math.sin(t * 2.5) * .08;
       g.save(); g.translate(0, -1.15 * e);
       g.fillStyle = "#D62828"; g.beginPath(); g.moveTo(-1.0 * e, 0); g.quadraticCurveTo(-.4 * e, -1.4 * e, .9 * e + sway * e, -1.05 * e); g.quadraticCurveTo(.5 * e, -.5 * e, 1.0 * e, 0); g.closePath(); g.fill();
       g.fillStyle = "#FFFFFF"; g.beginPath(); g.roundRect ? g.roundRect(-1.1 * e, -.12 * e, 2.2 * e, .36 * e, .18 * e) : g.rect(-1.1 * e, -.12 * e, 2.2 * e, .36 * e); g.fill();
       g.beginPath(); g.arc(.95 * e + sway * e, -1.05 * e, .2 * e, 0, 7); g.fill(); g.restore();
-    },
-    flowers(g, f) {
-      const e = f.e, list = ["🌸", "🌼", "🌺", "🌸", "🌼", "🌺", "🌸"];
-      list.forEach((ch, k) => { const a = Math.PI * (1.12 + k * .76 / (list.length - 1)), r = 1.25 * e; emoji(g, ch, Math.cos(a) * r, -.3 * e + Math.sin(a) * r * .75, .48 * e, (k - 3) * .15); });
-    },
-    stars(g, f, t) {
-      const e = f.e;
-      for (let k = 0; k < 5; k++) {
-        const a = t * 2.2 + k * Math.PI * 2 / 5, x = Math.cos(a) * 1.25 * e, y = -1.15 * e + Math.sin(a) * .32 * e, depth = (Math.sin(a) + 1) / 2;
-        g.globalAlpha = .55 + depth * .45; emoji(g, k % 2 ? "⭐" : "💫", x, y, (.28 + depth * .14) * e);
-      }
-      g.globalAlpha = 1;
-    },
-    blush(g, f, t) {
-      const e = f.e;
-      [-1, 1].forEach((s) => {
-        const gr = g.createRadialGradient(s * .78 * e, f.nd + .1 * e, 0, s * .78 * e, f.nd + .1 * e, .42 * e);
-        gr.addColorStop(0, "rgba(255,105,140,.55)"); gr.addColorStop(1, "rgba(255,105,140,0)"); g.fillStyle = gr;
-        g.beginPath(); g.arc(s * .78 * e, f.nd + .1 * e, .42 * e, 0, 7); g.fill();
-      });
-      [[-1.15, -.55, 0], [1.1, -.75, 1.3], [1.2, .35, 2.6]].forEach(([x, y, p]) => emoji(g, "✨", x * e, y * e, (.25 + .12 * Math.sin(t * 4 + p)) * e));
     },
   };
   function drawStickers(g, t) {
@@ -1029,9 +1071,11 @@ h1.display em { font-style: normal; color: var(--accent); }
     const bar = $("fxBar"); bar.innerHTML = "";
     FX.forEach(([k, label, ch]) => {
       const b = document.createElement("button"); b.type = "button"; b.className = "fx"; b.setAttribute("aria-pressed", String(fx === k));
-      b.innerHTML = `<span class="e" aria-hidden="true">${ch}</span><span></span>`; b.lastChild.textContent = label;
+      b.innerHTML = ch.includes("/") ? `<img class="e" src="${ch}" alt="" loading="lazy" decoding="async"><span></span>` : `<span class="e" aria-hidden="true">${ch}</span><span></span>`;
+      b.lastChild.textContent = label;
       b.addEventListener("click", () => {
         fx = k; try { localStorage.setItem("fb-fx", k); } catch {}
+        preloadSticker(k);
         buildFx();
         if (k === "none") { setStatus("Face stickers off."); return; }
         if (!pipelineOn) { setStatus("Face stickers aren't supported in this browser. Try Chrome or Safari.", true); return; }
@@ -1284,8 +1328,9 @@ h1.display em { font-style: normal; color: var(--accent); }
     render(); renderThumbs();
     const total = nRemote || n;
     for (let i = 0; i < total; i++) {
-      if (poseMode !== "off" && i < LAYOUTS[state.layout].n) pickPose(i);
-      overlay(poseCardHTML(i, total)); setStatus(`Shot ${i + 1} of ${total}: get ready.`);
+      if (poseMode !== "off" && i < LAYOUTS[state.layout].n) { pickPose(i); $("poseRail").classList.add("live"); }
+      else overlay(poseCardHTML(i, total)); // no pose guide: a short "Strike a pose!" on the camera
+      setStatus(poseMode !== "off" ? `Shot ${i + 1} of ${total}: ${poseInfo(i).name}. Get ready!` : `Shot ${i + 1} of ${total}: get ready.`);
       await sleep(1800);
       for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); await sleep(800); }
       overlay("");
@@ -1299,7 +1344,7 @@ h1.display em { font-style: normal; color: var(--accent); }
       }, 6000);
       await sleep(900);
     }
-    busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); buildUI();
+    busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); $("poseRail").classList.remove("live"); buildUI();
     setStatus("Done! Your print is ready. Save it, or tap Start to shoot again.");
     $("strip").scrollIntoView({ behavior: "smooth", block: "nearest" });
   }

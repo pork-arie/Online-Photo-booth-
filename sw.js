@@ -1,12 +1,40 @@
 // Keeps Flashbulb working offline after the first visit.
 // Pages are fetched from the network first (so updates arrive) and fall back to the saved copy.
-const CACHE = "flashbulb-v2";
+const CACHE = "flashbulb-v3";
 const CORE = [
   "./", "./index.html", "./solo/", "./solo/index.html",
   "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png",
   "./vendor/face-api/face-api.js",
   "./vendor/face-api/models/tiny_face_detector_model-weights_manifest.json", "./vendor/face-api/models/tiny_face_detector_model.bin",
   "./vendor/face-api/models/face_landmark_68_tiny_model-weights_manifest.json", "./vendor/face-api/models/face_landmark_68_tiny_model.bin",
+  // sticker artwork (Fluent Emoji, Noto Animated Emoji)
+  "./assets/stickers/fluent/billed_cap.png",
+  "./assets/stickers/fluent/blossom.png",
+  "./assets/stickers/fluent/cherry_blossom.png",
+  "./assets/stickers/fluent/crown.png",
+  "./assets/stickers/fluent/glasses.png",
+  "./assets/stickers/fluent/graduation_cap.png",
+  "./assets/stickers/fluent/hibiscus.png",
+  "./assets/stickers/fluent/ribbon.png",
+  "./assets/stickers/fluent/sunglasses.png",
+  "./assets/stickers/fluent/top_hat.png",
+  "./assets/stickers/fluent/womans_hat.png",
+  "./assets/stickers/noto/butterfly-icon.png",
+  "./assets/stickers/noto/butterfly.webp",
+  "./assets/stickers/noto/dizzy-icon.png",
+  "./assets/stickers/noto/dizzy.webp",
+  "./assets/stickers/noto/fire-icon.png",
+  "./assets/stickers/noto/fire.webp",
+  "./assets/stickers/noto/glowing_star-icon.png",
+  "./assets/stickers/noto/glowing_star.webp",
+  "./assets/stickers/noto/party_popper-icon.png",
+  "./assets/stickers/noto/party_popper.webp",
+  "./assets/stickers/noto/red_heart-icon.png",
+  "./assets/stickers/noto/red_heart.webp",
+  "./assets/stickers/noto/sparkles-icon.png",
+  "./assets/stickers/noto/sparkles.webp",
+  "./assets/stickers/noto/sparkling_heart-icon.png",
+  "./assets/stickers/noto/sparkling_heart.webp",
 ];
 const EXTRA = ["https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"]; // only needed for Together, so never wait on it
 
