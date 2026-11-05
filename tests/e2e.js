@@ -116,6 +116,9 @@ async function makeFaceVideo(browser) {
   // duo poses: two figures, labelled so each person knows their half
   check('Together starts with Duo poses', (await A.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Duo') && (await A.locator('#poseRail .rail-card.duo svg.duo').count()) === 4);
   check('Host sees You on the left, Partner on the right', (await A.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'You|Partner');
+  const bt = await B.evaluate(() => { const a = document.getElementById('tileA').getBoundingClientRect(); return Math.round(a.width); });
+  check('Phone Together: each camera gets half the screen', bt >= 160, `${bt}px per camera`);
+  await B.evaluate(() => window.scrollTo(0, 0)); await B.waitForTimeout(200); await B.screenshot({ path: OUT + '/phone-together.png' });
   check('Partner sees Partner on the left, You on the right', (await B.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'Partner|You');
   check('Both see the same duo poses', (await A.locator('#poseRail .rail-card b').allTextContents()).join() === (await B.locator('#poseRail .rail-card b').allTextContents()).join());
   await A.locator('#poseRail').screenshot({ path: OUT + '/duo-rail-host.png' });
@@ -224,10 +227,11 @@ async function makeFaceVideo(browser) {
   await PH.click('#themeBtn'); await PH.reload(); await PH.waitForTimeout(300);
   check('Sun button switches back to white', (await bgOf()) === 'rgb(243, 244, 242)');
   await PH.click('#soloBtn'); await PH.waitForSelector('#booth:not([hidden])', { timeout: 10000 });
-  const side = await PH.evaluate(() => { const s = document.getElementById('stage').getBoundingClientRect(), r = document.getElementById('poseRail').getBoundingClientRect(); return { beside: r.left >= s.right - 1 && r.top < s.bottom && r.bottom > s.top, w: Math.round(r.width) }; });
-  check('Phone: poses sit beside the camera', await PH.isVisible('#poseRail') && side.beside, `rail ${side.w}px wide`);
-  await PH.locator('#poseRail .rail-card').nth(1).click();
-  check('Phone: tapping a pose beside the camera picks it', (await PH.locator('#poseRail .rail-card').nth(1).getAttribute('aria-pressed')) === 'true');
+  const lay = await PH.evaluate(() => { const s = document.getElementById('stage').getBoundingClientRect(), r = document.getElementById('poseRail').getBoundingClientRect(), c = document.querySelector('.camera').getBoundingClientRect(); return { full: s.width >= c.width - 1, under: r.top >= s.bottom - 1 && r.top - s.bottom < 30, sw: Math.round(s.width) }; });
+  check('Phone: camera uses the full width', lay.full, `${lay.sw}px`);
+  check('Phone: poses sit right under the camera', await PH.isVisible('#poseRail') && lay.under);
+  await PH.locator('#poseRail .rail-card').nth(3).click(); await PH.waitForTimeout(300);
+  check('Phone: tapping a pose picks it and scrolls it into view', (await PH.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && await PH.evaluate(() => { const r = document.getElementById('poseRail'), c = r.children[3].getBoundingClientRect(), b = r.getBoundingClientRect(); return c.left >= b.left - 1 && c.right <= b.right + 1; }));
   check('Phone: no sideways scroll in the booth', (await PH.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await PH.screenshot({ path: OUT + '/phone-booth-light.png' });
 

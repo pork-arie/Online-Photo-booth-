@@ -156,18 +156,20 @@ h1.display em { font-style: normal; color: var(--accent); }
 .pose-sel { grid-template-columns: auto minmax(0, 1fr); }
 .rail.live .rail-card[aria-pressed="true"] { animation: posePulse 1s ease-in-out infinite; }
 @keyframes posePulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent); } }
+/* phones: the camera gets the full width; poses become a swipeable row right under it */
 @media (max-width: 900px) {
-  .stage-row { grid-template-columns: minmax(0, 1fr) 92px; gap: 8px; }
-  .rail { gap: 6px; }
-  .rail-card { padding: 4px; border-radius: 12px; }
-  .rail-card svg { width: 44px; height: 40px; }
+  .stage-row { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .rail:not([hidden]) { display: flex; overflow-x: auto; gap: 8px; padding: 4px 2px 8px; scroll-snap-type: x mandatory; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .rail::-webkit-scrollbar { display: none; }
+  .rail-card { flex: 0 0 auto; width: 118px; padding: 8px 6px; scroll-snap-align: center; transform: none !important; }
+  .rail-card.duo { width: 150px; }
+  .rail-card svg { width: 50px; height: 46px; }
   .rail-card[aria-pressed="true"] svg { width: 56px; height: 50px; }
-  .rail-card .emo { font-size: 24px; }
-  .rail-card small { font-size: 8.5px; letter-spacing: .06em; }
-  .rail-card b { font-size: 11px; }
-  .rail-card svg.duo, .rail-card[aria-pressed="true"] svg.duo { width: 82px; height: 38px; }
-  .rail-card .emo.duo { font-size: 18px; letter-spacing: 1px; }
-  .who2 { font-size: 8px; }
+  .rail-card svg.duo, .rail-card[aria-pressed="true"] svg.duo { width: 126px; height: 58px; }
+  .rail-card .emo { font-size: 26px; }
+  .rail-card .emo.duo { font-size: 24px; letter-spacing: 3px; }
+  .rail-card b { font-size: 12px; }
+  .who2 { font-size: 8.5px; }
 }
 @media (prefers-reduced-motion: reduce) { .rail-card { transition: none; } .rail.live .rail-card[aria-pressed="true"] { animation: none; } }
 .side { display: grid; gap: 18px; min-width: 0; }
@@ -211,9 +213,12 @@ h1.display em { font-style: normal; color: var(--accent); }
   .lobby { padding-top: 28px; gap: 24px; }
   .modes { grid-template-columns: minmax(0, 1fr); }
   .booth { grid-template-columns: minmax(0, 1fr); padding-top: 12px; }
-  .stage { aspect-ratio: 4 / 5; border-radius: 14px; }
+  .stage { aspect-ratio: 1 / 1; border-radius: 14px; }
   .stage.solo { aspect-ratio: 3 / 4; }
-  .session { padding: 10px 10px 10px 14px; }
+  .session { padding: 8px 8px 8px 14px; flex-wrap: nowrap; }
+  .session:has(#codeWrap:not([hidden])) .mode-tag, .code-wrap .lbl { display: none; }
+  .sess-left { flex-wrap: nowrap; min-width: 0; }
+  .code-wrap { gap: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .count, .flash.go { animation: none; } }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -869,6 +874,10 @@ h1.display em { font-style: normal; color: var(--accent); }
       b.setAttribute("aria-label", `Shot ${i + 1}: ${name}`);
       b.addEventListener("click", () => pickPose(i));
       rail.appendChild(b);
+    }
+    if (getComputedStyle(rail).display === "flex") {
+      const card = rail.children[selPose];
+      if (card) rail.scrollTo({ left: card.offsetLeft - rail.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2, behavior: busy ? "smooth" : "auto" });
     }
   }
   // light / dark switch (white by default)

@@ -53,7 +53,7 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
 - **Solo and Duo poses:** Solo poses have one figure. Duo poses have two figures side by side (Big heart, High five, Point at each other, Blow & catch, Secret and more), so in Together each person copies their half. Beside the camera your figure is black and your partner's is green, labeled You and Partner. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
-- **Poses beside the camera:** the poses for your shots sit in a column next to the camera, on phones too. Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
+- **Poses beside the camera:** the poses for your shots sit in a column next to the camera (on phones, in a swipeable row right under it, so the camera keeps the full width). Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
 - **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption
 - **Synced settings in Together:** whatever either person changes appears on both screens
