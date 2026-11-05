@@ -963,12 +963,22 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (fx !== "none") { preloadSticker(fx); loadFaces(); }
     return new MediaStream([fxCanvas.captureStream(30).getVideoTracks()[0], ...cam.getAudioTracks()]);
   }
+  let lite = params.get("lite") === "1", detectMs = 0;
+  $("stage").dataset.lite = lite ? "1" : "0";
+  function setLite(on) {
+    if (lite === on) return; lite = on;
+    $("stage").dataset.lite = on ? "1" : "0";
+    if (on) setStatus("Lighter mode on to keep things smooth on this phone.");
+  }
   function fxLoop() {
     fxRaf = requestAnimationFrame(fxLoop);
     const v = srcVideo; if (!v || !v.videoWidth) return;
-    if (fxCanvas.width !== v.videoWidth || fxCanvas.height !== v.videoHeight) { fxCanvas.width = v.videoWidth; fxCanvas.height = v.videoHeight; }
+    const sc = lite && v.videoWidth > 720 ? 720 / v.videoWidth : 1, w = Math.round(v.videoWidth * sc), h = Math.round(v.videoHeight * sc);
+    if (fxCanvas.width !== w || fxCanvas.height !== h) { fxCanvas.width = w; fxCanvas.height = h; }
+    fxCtx.setTransform(sc, 0, 0, sc, 0, 0); // stickers are placed in camera pixels
     fxCtx.drawImage(v, 0, 0);
     if (fx !== "none") drawStickers(fxCtx, performance.now() / 1000);
+    fxCtx.setTransform(1, 0, 0, 1, 0, 0);
   }
   function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
   async function loadFaces() {
@@ -1003,9 +1013,12 @@ h1.display em { font-style: normal; color: var(--accent); }
         let old = null, best = g.e * 3;
         faces.forEach((f) => { const d = Math.hypot(f.x - g.x, f.y - g.y); if (d < best && !used.has(f)) { best = d; old = f; } });
         if (old) { // smooth small jitters, follow big moves right away
-          used.add(old); const a = best < g.e * .6 ? 0.6 : 1;
+          used.add(old); const a = best < g.e * .6 ? 0.6 : 1, px = old.x + (old.vx || 0) * Math.min(now - old.seen, 300), py = old.y + (old.vy || 0) * Math.min(now - old.seen, 300);
           for (const k of ["x", "y", "e", "nd", "md", "cd"]) g[k] = old[k] + (g[k] - old[k]) * a;
           g.ang = old.ang + (g.ang - old.ang) * a;
+          const dt = now - old.seen; // speed in pixels per millisecond, smoothed
+          if (dt > 0 && dt < 1000) { g.vx = ((g.x - old.x) / dt) * .6 + (old.vx || 0) * .4; g.vy = ((g.y - old.y) / dt) * .6 + (old.vy || 0) * .4; }
+          if (Math.hypot(px - g.x, py - g.y) > g.e * 1.5) { g.vx = 0; g.vy = 0; } // direction changed: stop leading
         }
         g.seen = now; return g;
       });
@@ -1015,11 +1028,15 @@ h1.display em { font-style: normal; color: var(--accent); }
   async function detectLoop() {
     if (detecting || faceLib !== "ready") return;
     detecting = true;
-    const opts = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.55 });
+    const full = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.55 });
+    const light = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
     while (camStream) {
       if (fx !== "none" && srcVideo && srcVideo.videoWidth) {
-        try { updateFaces(await faceapi.detectAllFaces(srcVideo, opts).withFaceLandmarks(true)); } catch {}
-        await sleep(60);
+        const t0 = performance.now();
+        try { updateFaces(await faceapi.detectAllFaces(srcVideo, lite ? light : full).withFaceLandmarks(true)); } catch {}
+        const ms = performance.now() - t0; detectMs = detectMs ? detectMs * .8 + ms * .2 : ms;
+        if (!lite && detectMs > 200 && params.get("lite") !== "0") setLite(true); // slow phone: lighter checks, smaller video
+        await sleep(lite ? 140 : 60);
       } else { faces = []; await sleep(300); }
     }
     detecting = false;
@@ -1152,7 +1169,11 @@ h1.display em { font-style: normal; color: var(--accent); }
   };
   function drawStickers(g, t) {
     const draw = STICKERS[fx]; if (!draw) return;
-    faces.forEach((f) => { g.save(); g.translate(f.x, f.y); g.rotate(f.ang); try { draw(g, f, t); } catch {} g.restore(); });
+    const now = performance.now();
+    faces.forEach((f) => {
+      const lead = Math.min(now - f.seen, 250); // between face checks, keep moving the way the face was moving
+      g.save(); g.translate(f.x + (f.vx || 0) * lead, f.y + (f.vy || 0) * lead); g.rotate(f.ang); try { draw(g, f, t); } catch {} g.restore();
+    });
   }
   function buildFx() {
     const bar = $("fxBar"); bar.innerHTML = "";
@@ -1505,12 +1526,24 @@ h1.display em { font-style: normal; color: var(--accent); }
     const d = new Date(), st = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return ((state.caption.trim() || "flashbulb").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flashbulb") + "-" + st + ".png";
   }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // Save a file: on iPhone/iPad the share sheet is the way into Photos; elsewhere a normal download.
+  async function saveBlob(blob, name, what) {
+    if (isIOS && navigator.canShare) {
+      const file = new File([blob], name, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); setStatus(`Tap "Save Image" or "Save Video" to keep your ${what} in Photos.`); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); setStatus(`Saved your ${what}.`);
+  }
   $("saveBtn").addEventListener("click", () => {
     render();
     canvas.toBlob((b) => {
       if (!b) { setStatus("Couldn't make the image. Try again.", true); return; }
-      const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = fileName(); document.body.appendChild(a); a.click();
-      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); setStatus("Saved your print.");
+      saveBlob(b, fileName(), "print");
     }, "image/png");
   });
   $("shareImgBtn").addEventListener("click", () => {

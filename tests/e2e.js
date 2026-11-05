@@ -69,7 +69,7 @@ async function makeFaceVideo(browser) {
     p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(name + ' console: ' + m.text()); });
     return p;
   };
-  const q = '?peerhost=localhost&peerport=9000&peersecure=0&peerpath=/&nosw=1&test=1';
+  const q = '?peerhost=localhost&peerport=9000&peersecure=0&peerpath=/&nosw=1&test=1&lite=0';
   const A = await mk('A', { width: 1280, height: 900 });
   await A.goto('http://localhost:8080/index.html' + q); await A.waitForTimeout(500);
   await A.screenshot({ path: OUT + '/lobby.png' });
@@ -304,6 +304,14 @@ async function makeFaceVideo(browser) {
   const loaded = await F.evaluate(() => performance.getEntriesByType('resource').filter((r) => r.name.includes('/assets/stickers/')).length);
   check('Sticker artwork loads (Fluent + Noto)', loaded >= 20, `${loaded} files`);
   check('Every sticker draws without errors', !errs.some((x) => x.startsWith('Faces')));
+  // lighter mode for slow phones still finds the face and draws stickers
+  const LT = await mkF('Lite'); await LT.goto('http://localhost:8080/index.html' + q.replace('lite=0', 'lite=1')); await LT.click('#soloBtn');
+  await LT.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 15000 });
+  await LT.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
+  await LT.waitForFunction(() => +(document.getElementById('stage').dataset.faces || 0) > 0, null, { timeout: 30000 }).catch(() => {});
+  await LT.waitForTimeout(800);
+  check('Lighter mode still tracks the face', (await LT.evaluate(() => document.getElementById('stage').dataset.lite)) === '1' && (await ears(LT, 'vidA')).n > before.n + 1000);
+  await LT.close();
   await F.locator('#fxBar .fx', { hasText: 'Santa hat' }).click(); await F.waitForTimeout(600);
   await F.screenshot({ path: OUT + '/stickers-santa.png' });
   await F.locator('#fxBar .fx', { hasText: 'Puppy' }).click(); await F.waitForTimeout(600);
