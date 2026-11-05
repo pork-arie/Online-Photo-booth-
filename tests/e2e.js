@@ -161,25 +161,40 @@ async function makeFaceVideo(browser) {
   await B.click('#leaveBtn'); await A.waitForTimeout(1500);
   check('Host is told partner left', (await A.textContent('#pillText')) === 'Partner left');
   check('Phone layout: no sideways scroll', (await B.evaluate(() => document.documentElement.scrollWidth)) <= 390);
-  // ---- solo booth ----
-  const S = await mk('Solo', { width: 1200, height: 900 });
-  await S.goto('http://localhost:8080/solo/index.html?nosw=1'); await S.waitForTimeout(800);
-  check('Solo: home page shows', await S.isVisible('#homeView'));
-  check('Solo: links to the live booth', (await S.getAttribute('.nav-links a.quiet', 'href')) === '../');
-  await S.click('#enterBtn'); await S.waitForTimeout(400);
-  check('Solo: Step inside opens the booth', await S.isVisible('#boothView'));
-  const photo = await S.evaluate(() => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const g = c.getContext('2d'); g.fillStyle = '#e63946'; g.fillRect(0, 0, 800, 600); return c.toDataURL('image/jpeg').split(',')[1]; });
-  await S.setInputFiles('#chooseInput', { name: 'me.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') }); await S.waitForTimeout(600);
-  check('Solo: adding a photo works', (await S.locator('#slots .slot.filled').count()) === 1);
+  // ---- Use my photos: built into the main page ----
+  const S = await mk('Photos', { width: 1200, height: 900 });
+  await S.goto('http://localhost:8080/index.html' + q); await S.waitForTimeout(400);
+  await S.click('#photosBtn'); await S.waitForSelector('#booth:not([hidden])', { timeout: 5000 });
+  check('Use my photos opens in the booth (no camera)', (await S.textContent('#modeTag')) === 'Your photos' && await S.isVisible('#photoPick') && !(await S.isVisible('#vidA')) && (await S.locator('#photoPick .pick-slot').count()) === 4);
+  const red = await S.evaluate(() => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const g = c.getContext('2d'); g.fillStyle = '#e63946'; g.fillRect(0, 0, 800, 600); return c.toDataURL('image/jpeg').split(',')[1]; });
+  const [pc] = await Promise.all([S.waitForEvent('filechooser'), S.click('#shootBtn')]);
+  await pc.setFiles([{ name: 'a.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(red, 'base64') }, { name: 'b.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(red, 'base64') }]);
+  await S.waitForFunction(() => document.querySelectorAll('#photoPick .pick-slot.filled').length === 2, null, { timeout: 10000 }).catch(() => {});
+  check('Add photos fills the slots', (await S.locator('#photoPick .pick-slot.filled').count()) === 2, await S.textContent('#status'));
+  const [pc2] = await Promise.all([S.waitForEvent('filechooser'), S.locator('#photoPick .pick-slot').nth(3).click()]);
+  await pc2.setFiles(path.join(__dirname, 'fixtures', 'astronaut.jpg'));
+  await S.waitForFunction(() => document.querySelectorAll('#photoPick .pick-slot.filled').length === 3, null, { timeout: 10000 }).catch(() => {});
+  check('Tapping a slot puts the photo in that slot', await S.locator('#photoPick .pick-slot').nth(3).evaluate((el) => el.classList.contains('filled')));
+  // compare photo 4 before and after the sticker (the photo itself, before any film look)
+  const pixelsOf = () => S.evaluate(() => new Promise((res) => { const im = new Image(); im.onload = () => { const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const g = c.getContext('2d'); g.drawImage(im, 0, 0); res(Array.from(g.getImageData(0, 0, c.width, c.height).data)); }; im.src = document.querySelectorAll('#photoPick .pick-slot img')[2].src; }));
+  const px0 = await pixelsOf();
+  await S.locator('#fxBar').getByRole('button', { name: 'Puppy', exact: true }).click();
+  await S.waitForFunction(() => /Stickers added|No faces/.test(document.getElementById('status').textContent), null, { timeout: 40000 }).catch(() => {});
+  await S.waitForTimeout(300);
+  const px1 = await pixelsOf(); let changed = 0; for (let i = 0; i < Math.min(px0.length, px1.length); i += 4) if (Math.abs(px0[i] - px1[i]) + Math.abs(px0[i + 1] - px1[i + 1]) + Math.abs(px0[i + 2] - px1[i + 2]) > 60) changed++;
+  check('Face stickers go on faces in your photos', (await S.textContent('#status')).includes('Stickers added to 1 face') && changed > 150, `${await S.textContent('#status')} (${changed} pixels changed)`);
   const sdl = S.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await S.click('#saveBtn'); const sd = await sdl;
-  check('Solo: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
-  await S.locator('.switch').click(); await S.waitForTimeout(300);
-  check('Solo: Duo points to the live booth', (await S.textContent('#togetherNote')).includes('live booth for two'));
-  await S.screenshot({ path: OUT + '/solo-booth.png', fullPage: true });
+  check('Photos: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
+  const sg = S.waitForEvent('download', { timeout: 20000 }).catch(() => null);
+  await S.click('#gifBtn'); const sgd = await sg;
+  check('Photos: Save GIF works too', !!sgd && sgd.suggestedFilename().endsWith('.gif'));
+  await S.screenshot({ path: OUT + '/photos-mode.png', fullPage: true });
+  await S.goto('http://localhost:8080/solo/?nosw=1'); await S.waitForTimeout(1200);
+  check('Old /solo/ link opens Use my photos', (await S.textContent('#modeTag').catch(() => '')) === 'Your photos' && await S.isVisible('#photoPick'));
   const L = await mk('Lobby', { width: 390, height: 844 });
   await L.goto('http://localhost:8080/index.html?nosw=1'); await L.waitForTimeout(300);
-  check('Start page offers Just me, Together and Use my photos', await L.isVisible('#soloBtn') && await L.isVisible('#startBtn') && (await L.getAttribute('a[href="solo/"]', 'href')) === 'solo/');
+  check('Start page offers Just me, Together and Use my photos', await L.isVisible('#soloBtn') && await L.isVisible('#startBtn') && await L.isVisible('#photosBtn'));
   check('Start page fits a phone screen', (await L.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await L.screenshot({ path: OUT + '/lobby-phone.png', fullPage: true });
 
@@ -277,7 +292,8 @@ async function makeFaceVideo(browser) {
   await O.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
   check('Offline: Just me still works', await O.isVisible('#booth') && await O.evaluate(() => document.getElementById('vidA').videoWidth > 0));
   await O.goto('http://localhost:8080/solo/').catch(() => {}); await O.waitForTimeout(600);
-  check('Offline: Use my photos still opens', await O.isVisible('#homeView'));
+  await O.waitForTimeout(800);
+  check('Offline: Use my photos still opens', await O.isVisible('#photoPick'));
   await O.context().setOffline(false);
   // ---- face stickers, with a real face as the fake camera ----
   const y4m = await makeFaceVideo(b);

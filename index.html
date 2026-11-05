@@ -208,6 +208,20 @@ h1.display em { font-style: normal; color: var(--accent); }
 #strip.strip { width: min(100%, 300px); } #strip.polaroid { width: min(100%, 420px); }
 #strip.strip.wp { width: min(100%, 340px); }
 .print-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.pick { display: none; }
+.stage.photos { display: block; background: var(--sunk); aspect-ratio: auto; }
+.stage.photos .tile { display: none; }
+.stage.photos .pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 12px; }
+.stage.photos .pick[data-n="1"] { grid-template-columns: minmax(0, 1fr); }
+.pick-slot { position: relative; appearance: none; aspect-ratio: 4 / 3; border: 2px dashed var(--line); border-radius: 14px; background: var(--surface); color: var(--muted); cursor: pointer; display: grid; place-content: center; justify-items: center; gap: 4px; font: 600 14px var(--font-body); overflow: hidden; padding: 0; }
+.pick-slot:hover { border-color: var(--accent); color: var(--accent); }
+.pick-slot .plus { font: 300 34px/1 var(--font-body); }
+.pick-slot.filled { border: 0; }
+.pick-slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; animation: thumb-pop-flat .45s cubic-bezier(.2,.9,.3,1.4) both; }
+@keyframes thumb-pop-flat { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+.pick-slot .n { position: absolute; left: 8px; top: 8px; background: rgba(0,0,0,.55); color: #fff; font: 700 12px var(--font-body); padding: 2px 8px; border-radius: 999px; }
+.photos-mode .thumbs { display: none; }
+.photos-mode #strip { transform: none; }
 #soundBtn .mute, #soundBtn.off .on { display: none; } #soundBtn.off .mute { display: block; } #soundBtn.off { color: var(--muted); }
 .confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
 .print-box { overflow: hidden; }
@@ -292,7 +306,7 @@ h1.display em { font-style: normal; color: var(--accent); }
         <span class="tag">Works offline</span>
         <h2>Use my photos</h2>
         <p>Already took your pictures? Turn photos from your gallery into a strip with the same looks.</p>
-        <a class="btn" href="solo/">Open the strip maker</a>
+        <button class="btn" id="photosBtn" type="button">Choose photos</button>
       </article>
     </div>
     <p class="note" id="lobbyNote">Allow your camera when your browser asks.</p>
@@ -312,9 +326,12 @@ h1.display em { font-style: normal; color: var(--accent); }
       <div class="stage" id="stage">
         <div class="tile" id="tileA"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
         <div class="tile" id="tileB"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
+        <div class="pick" id="photoPick" aria-label="Your photos"></div>
         <div class="overlay" id="overlay"></div>
         <div class="flash" id="flash"></div>
       </div>
+      <input type="file" id="photoMany" accept="image/*" multiple class="vh" tabindex="-1" aria-hidden="true">
+      <input type="file" id="photoOne" accept="image/*" class="vh" tabindex="-1" aria-hidden="true">
       <div class="rail" id="poseRail" role="group" aria-label="Poses for each shot" hidden></div>
       </div>
       <div class="controls">
@@ -852,7 +869,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (document.activeElement !== $("caption")) $("caption").value = state.caption;
     $("capCount").textContent = `${state.caption.length}/28`;
     const n = LAYOUTS[state.layout].n;
-    $("shootLabel").textContent = busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
+    $("shootLabel").textContent = photosMode ? "Add photos" : busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
+    if (photosMode) renderPick();
   }
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
   let selPose = 0; // the pose shown beside the camera
@@ -1213,6 +1231,7 @@ h1.display em { font-style: normal; color: var(--accent); }
         fx = k; try { localStorage.setItem("fb-fx", k); } catch {}
         preloadSticker(k);
         buildFx();
+        if (photosMode) { rebakeAll(); return; }
         if (k === "none") { setStatus("Face stickers off."); return; }
         if (!pipelineOn) { setStatus("Face stickers aren't supported in this browser. Try Chrome or Safari.", true); return; }
         if (faceLib === "ready") { setStatus(`${label} on. Move around and it follows you.`); detectLoop(); } else loadFaces();
@@ -1549,7 +1568,110 @@ h1.display em { font-style: normal; color: var(--accent); }
     confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120);
     st.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "nearest" });
   }
-  $("shootBtn").addEventListener("click", () => runSession(true));
+  /* ---------- Use my photos: build a strip from pictures you already have ---------- */
+  let photosMode = false, pickSlot = null;
+  const photosRaw = [null, null, null, null];
+  let faceLibPromise = null;
+  function faceLibReady() { // load face tracking once, for photos (no camera loop)
+    if (faceLib === "ready") return Promise.resolve(true);
+    if (!faceLibPromise) faceLibPromise = (async () => {
+      faceLib = "loading";
+      try {
+        if (typeof faceapi === "undefined") await loadScript("vendor/face-api/face-api.js");
+        await faceapi.nets.tinyFaceDetector.loadFromUri("vendor/face-api/models");
+        await faceapi.nets.faceLandmark68TinyNet.loadFromUri("vendor/face-api/models");
+        faceLib = "ready"; return true;
+      } catch (e) { faceLib = "failed"; return false; }
+    })();
+    return faceLibPromise;
+  }
+  function artReady(k) {
+    return Promise.all((NEEDS[k] || []).map((x) => new Promise((res) => {
+      const src = x.includes("/") ? x : sheet(x); img(src); const im = imgCache[src];
+      if (im.complete && im.naturalWidth) res(); else { im.addEventListener("load", res, { once: true }); im.addEventListener("error", res, { once: true }); }
+    })));
+  }
+  // Put the chosen sticker on every face found in a photo (a still frame of the animation).
+  async function bake(raw) {
+    if (fx === "none" || !raw) return raw;
+    if (!(await faceLibReady())) return raw;
+    await artReady(fx);
+    let res = [];
+    try { res = await faceapi.detectAllFaces(raw, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks(true); } catch (e) {}
+    const c = document.createElement("canvas"); c.width = raw.width; c.height = raw.height; const g = c.getContext("2d"); g.drawImage(raw, 0, 0);
+    const keep = faces, now = performance.now();
+    faces = res.map((r) => Object.assign(faceGeometry(r.landmarks.positions), { seen: now, vx: 0, vy: 0 }));
+    drawStickers(g, 1.2); const found = faces.length; faces = keep;
+    c.dataset.faces = String(found);
+    return c;
+  }
+  async function placePhoto(i, raw) {
+    photosRaw[i] = raw;
+    const done = await bake(raw);
+    state.photos[i] = toShot(done); state.photos[i].faces = +(done.dataset && done.dataset.faces || 0);
+  }
+  async function rebakeAll() {
+    if (!photosRaw.some(Boolean)) return;
+    setStatus(fx === "none" ? "Stickers removed." : "Adding stickers to your photos…");
+    for (let i = 0; i < 4; i++) if (photosRaw[i]) await placePhoto(i, photosRaw[i]);
+    renderPick(); render(); renderThumbs();
+    if (fx !== "none") { const n = state.photos.reduce((a, p) => a + (p ? p.faces || 0 : 0), 0); setStatus(n ? `Stickers added to ${n} face${n === 1 ? "" : "s"}.` : "No faces found in your photos, so no stickers were added.", !n); }
+  }
+  async function readPhoto(file) {
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) { bmp = await new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { res(im); URL.revokeObjectURL(u); }; im.onerror = () => { rej(e); URL.revokeObjectURL(u); }; im.src = u; }); }
+    const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s); c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    return c;
+  }
+  async function addPhotos(files, start) {
+    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    if (!list.length) { setStatus("That file isn't a photo. Try a JPG, PNG or HEIC picture.", true); return; }
+    const n = LAYOUTS[state.layout].n; setStatus("Adding your photos…");
+    let added = 0;
+    for (let k = 0; k < list.length && k < 4; k++) {
+      let slot = k === 0 && start != null ? start : state.photos.findIndex((p, j) => !p && j < n);
+      if (slot < 0) slot = (start ?? 0) + k < 4 ? (start ?? 0) + k : k;
+      try { await placePhoto(slot, await readPhoto(list[k])); added++; } catch (e) {}
+    }
+    renderPick(); render(); renderThumbs();
+    const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop");
+    const filled = state.photos.slice(0, n).filter(Boolean).length;
+    setStatus(added ? (filled >= n ? "Your strip is ready! Save it as a picture, GIF or video." : `Added ${added} photo${added === 1 ? "" : "s"}. ${n - filled} to go.`) : "Couldn't open that photo. Try saving it as JPG first.", !added);
+    if (filled >= n && added) confettiBurst();
+  }
+  function renderPick() {
+    const box = $("photoPick"), n = LAYOUTS[state.layout].n; box.innerHTML = ""; box.dataset.n = String(n);
+    for (let i = 0; i < n; i++) {
+      const p = state.photos[i], b = document.createElement("button"); b.type = "button"; b.className = "pick-slot" + (p ? " filled" : "");
+      b.setAttribute("aria-label", p ? `Replace photo ${i + 1}` : `Add photo ${i + 1}`);
+      b.innerHTML = p ? `<img src="${p.thumb}" alt=""><span class="n">${i + 1}</span>` : `<span class="plus" aria-hidden="true">+</span><span>Photo ${i + 1}</span>`;
+      b.addEventListener("click", () => { pickSlot = i; $("photoOne").value = ""; $("photoOne").click(); });
+      box.appendChild(b);
+    }
+  }
+  function startPhotos() {
+    solo = true; photosMode = true; mySide = "A"; state.mirror = false; state.usingSamples = false;
+    for (let i = 0; i < 4; i++) { state.photos[i] = null; photosRaw[i] = null; }
+    enterBooth();
+    document.body.classList.add("photos-mode"); $("stage").classList.add("photos");
+    $("modeTag").textContent = "Your photos";
+    ["micBtn", "flipBtn", "soundBtn"].forEach((id) => { $(id).hidden = true; });
+    $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false;
+    renderPick(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
+  }
+  $("photoMany").addEventListener("change", (e) => addPhotos(e.target.files, null));
+  $("photoOne").addEventListener("change", (e) => addPhotos(e.target.files, pickSlot));
+  $("photosBtn").addEventListener("click", startPhotos);
+  $("stage").addEventListener("dragover", (e) => { if (photosMode) e.preventDefault(); });
+  $("stage").addEventListener("drop", (e) => { if (!photosMode) return; e.preventDefault(); addPhotos(e.dataTransfer && e.dataTransfer.files, null); });
+
+  $("shootBtn").addEventListener("click", () => {
+    if (photosMode) { $("photoMany").value = ""; $("photoMany").click(); return; }
+    runSession(true);
+  });
 
   /* ---------- Sounds: countdown beeps and a shutter click (Web Audio, no files) ---------- */
   let soundOn = true, actx = null, soundsPlayed = 0;
@@ -1785,6 +1907,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   $("startBtn").addEventListener("click", startBooth);
   $("joinBtn").addEventListener("click", joinBooth);
   $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
+  if (params.get("mode") === "photos") startPhotos();
   const pre = (params.get("join") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
   if (pre) { $("joinCode").value = pre; lobbyNote("Your partner invited you. Tap Join and allow your camera."); $("joinBtn").focus(); }
   if (!window.isSecureContext) lobbyNote("Open this page over https (a secure link) so the camera can turn on.", true);
