@@ -820,16 +820,14 @@
     for (const sd of ["A", "B"]) for (let i = 0; i < 4; i++) sideArr(sd)[i] = null;
     render(); renderThumbs();
     const total = nRemote || n;
-    building++; clips = []; sessionVideo = null; updateVideoBtn(); // a new session replaces the last video
     for (let i = 0; i < total; i++) {
       if (poseMode !== "off" && i < LAYOUTS[state.layout].n) { pickPose(i); $("poseRail").classList.add("live"); }
       else overlay(poseCardHTML(i, total)); // no pose guide: a short "Strike a pose!" on the camera
       if (poseMode !== "off") { const pi = poseInfo(i); setStatus(`Shot ${i + 1} of ${total}: ${pi.name}. ${pi.tip || "Get ready!"}`); }
       else setStatus(`Shot ${i + 1} of ${total}: get ready.`);
       await sleep(1800);
-      startClip(i); // keep a short clip of the pose for the moving strip
       for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); beep(k === 1 ? 990 : 660, k === 1 ? .18 : .12); await sleep(800); }
-      overlay(""); stopClip();
+      overlay("");
       const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); shutter();
       const mine = frameFrom(pipelineOn ? fxCanvas : localVideo(), facing !== "user");
       if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
@@ -841,8 +839,7 @@
       await sleep(900);
     }
     busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); $("poseRail").classList.remove("live"); buildUI();
-    setStatus("Done! Your print is ready. Making your booth video…");
-    setTimeout(() => buildStripVideo().catch(() => setStatus("Couldn't make the booth video. Your print is still ready.", true)), 600); // after the partner's photos arrive
+    setStatus("Done! Your print is ready.");
     const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop"); // the print develops like instant film
     dispense(); setTimeout(() => { confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120); }, calm() ? 0 : 2400);
   }
@@ -939,7 +936,7 @@
     $("modeTag").textContent = "Your photos";
     ["micBtn", "flipBtn", "soundBtn"].forEach((id) => { $(id).hidden = true; });
     $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false; $("againBtn").textContent = "Change photos";
-    renderPick(); updateVideoBtn(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
+    renderPick(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
   }
   $("photoMany").addEventListener("change", (e) => addPhotos(e.target.files, null));
   $("photoOne").addEventListener("change", (e) => addPhotos(e.target.files, pickSlot));
@@ -959,7 +956,7 @@
     try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); return actx; } catch { return null; }
   }
   function audio() { return soundOn ? anyAudio() : null; }
-  let master = null; // every booth sound goes here: to your speaker, and into the session video while recording
+  let master = null; // every booth sound goes through here to your speaker
   function sinkFor(a) { if (!master || master.context !== a) { master = a.createGain(); master.connect(a.destination); } return master; }
   document.addEventListener("pointerdown", () => { if (soundOn) audio(); }, { once: true }); // phones only allow sound after a tap
   function beep(freq = 880, dur = .12, vol = .18) {
@@ -1010,94 +1007,6 @@
     })(start);
   }
 
-  /* ---------- Booth video: a "live strip" ----------
-     During each countdown the booth quietly keeps a short clip of you posing (and, in Together, your partner).
-     After the session it builds a video of the print where every photo plays its clip, forward and back, then
-     settles on the finished strip. No REC badge or countdown in the video. */
-  const CLIP_FPS = 12, CLIP_W = 400;
-  let clips = [], clipTimer = 0, sessionVideo = null, building = 0;
-  function recMime() {
-    if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) return "";
-    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
-      .find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
-  }
-  // one small frame from a camera, flipped the same way as the photos (so the print's mirroring treats both alike)
-  function grabSmall(src, flip) {
-    const w = src && (src.videoWidth || src.width), h = src && (src.videoHeight || src.height); if (!w || !h) return null;
-    const s = CLIP_W / w, c = document.createElement("canvas"); c.width = CLIP_W; c.height = Math.round(h * s);
-    const g = c.getContext("2d"); if (flip) { g.translate(c.width, 0); g.scale(-1, 1); } g.drawImage(src, 0, 0, c.width, c.height);
-    return new Promise((res) => c.toBlob((b) => res(b), "image/jpeg", .8));
-  }
-  function startClip(i) {
-    if (!recMime() || photosMode) return;
-    clips[i] = { A: [], B: [] };
-    const tick = () => {
-      const mine = grabSmall(pipelineOn ? fxCanvas : localVideo(), facing !== "user");
-      if (mine) mine.then((b) => { if (b && clips[i]) clips[i][mySide].push(b); });
-      if (!solo && remoteVideo().srcObject) { const th = grabSmall(remoteVideo(), !partnerFront); if (th) th.then((b) => { if (b && clips[i]) clips[i][otherSide()].push(b); }); }
-    };
-    tick(); clearInterval(clipTimer); clipTimer = setInterval(tick, 1000 / CLIP_FPS);
-  }
-  function stopClip() { clearInterval(clipTimer); clipTimer = 0; }
-  async function buildStripVideo() {
-    const mime = recMime(); if (!mime || !clips.some((c) => c && (c.A.length || c.B.length))) return;
-    const myBuild = ++building;
-    sessionVideo = null; updateVideoBtn();
-    render();
-    const sp = spec(state.layout), n = LAYOUTS[state.layout].n;
-    const s = Math.min(1, 1280 / sp.H, 1280 / sp.W), W = Math.round(sp.W * s / 2) * 2, H = Math.round(sp.H * s / 2) * 2;
-    const base = document.createElement("canvas"); base.width = W; base.height = H; base.getContext("2d").drawImage(canvas, 0, 0, W, H);
-    const out = document.createElement("canvas"); out.width = W; out.height = H; const g = out.getContext("2d");
-    // where each clip goes on the print (each half of a frame in Together)
-    const spots = [];
-    for (let i = 0; i < n; i++) {
-      const rect = sp.slots[i], c = clips[i]; if (!rect || !c) continue;
-      const parts = state.duo ? halves(rect) : [["A", rect]];
-      parts.forEach(([sd, r]) => { if (c[sd] && c[sd].length) spots.push({ frames: c[sd], r, i, slot: rect }); });
-    }
-    const d = design(), frame = currentFrame();
-    if (!spots.length) return;
-    const len = Math.max(...spots.map((p) => p.frames.length));
-    const order = []; for (let k = 0; k < len; k++) order.push(k); for (let k = len - 2; k > 0; k--) order.push(k); // forward, then back
-    const total = order.length * 2 + Math.round(CLIP_FPS * 1.5); // two loops, then hold on the finished strip
-    let stream = out.captureStream(0), track = stream.getVideoTracks()[0];
-    if (typeof track.requestFrame !== "function") { track.stop(); stream = out.captureStream(CLIP_FPS); track = stream.getVideoTracks()[0]; } // browsers without frame-by-frame capture
-    const recd = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5e6 }), chunks = [];
-    recd.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    const done = new Promise((res) => { recd.onstop = res; });
-    recd.start(500);
-    const decode = (b) => createImageBitmap(b).catch(() => null);
-    let next = performance.now();
-    for (let f = 0; f < total; f++) {
-      if (building !== myBuild) { recd.stop(); return; } // a new session started
-      g.drawImage(base, 0, 0);
-      if (f < order.length * 2) {
-        const k = order[f % order.length];
-        const pics = await Promise.all(spots.map((p) => decode(p.frames[Math.min(k, p.frames.length - 1)])));
-        g.save(); g.scale(s, s); // draw in print pixels so the design lines up exactly
-        spots.forEach((p, j) => {
-          if (!pics[j]) return;
-          const draw = () => g.drawImage(shotImage(pics[j], p.r.w, p.r.h), p.r.x, p.r.y, p.r.w, p.r.h);
-          if (d.shot) d.shot(g, p.r, p.i, draw, frame); else draw();
-          pics[j].close && pics[j].close();
-        });
-        if (d.over) [...new Set(spots.map((p) => p.i))].forEach((i) => d.over(g, sp.slots[i], i, frame));
-        g.restore();
-      }
-      track.requestFrame ? track.requestFrame() : null;
-      if (f % 6 === 0) setStatus(`Making your booth video… ${Math.round((f / total) * 100)}%`);
-      next += 1000 / CLIP_FPS; const wait = next - performance.now(); if (wait > 0) await sleep(wait);
-    }
-    await sleep(200); recd.stop(); await done; track.stop();
-    if (building !== myBuild || !chunks.length) return;
-    sessionVideo = new Blob(chunks, { type: mime.split(";")[0] }); updateVideoBtn();
-    setStatus("Your booth video is ready: your strip with every photo moving. Tap Save video.");
-  }
-  function updateVideoBtn() {
-    const b = $("videoBtn"); b.hidden = !recMime() || photosMode;
-    b.disabled = !sessionVideo; b.title = sessionVideo ? "Save your strip as a video" : "Take your shots first. The booth makes a moving strip for you.";
-  }
-
   /* ---------- save / share ---------- */
   function fileName() {
     const d = new Date(), st = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -1109,7 +1018,7 @@
     if (isIOS && navigator.canShare) {
       const file = new File([blob], name, { type: blob.type });
       if (navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file] }); setStatus(`Tap "Save Image" or "Save Video" to keep your ${what} in Photos.`); return; }
+        try { await navigator.share({ files: [file] }); setStatus(`Tap "Save Image" to keep your ${what} in Photos.`); return; }
         catch (e) { if (e && e.name === "AbortError") return; }
       }
     }
@@ -1123,12 +1032,6 @@
       saveBlob(b, fileName(), "print");
     }, "image/png");
   });
-  const baseName = () => fileName().replace(/\.png$/, "");
-  $("videoBtn").addEventListener("click", () => {
-    if (!sessionVideo) { setStatus("Take your shots first. The booth makes a moving strip of your session."); return; }
-    saveBlob(sessionVideo, baseName() + (sessionVideo.type.includes("mp4") ? ".mp4" : ".webm"), "booth video");
-  });
-  updateVideoBtn();
   $("shareImgBtn").addEventListener("click", () => {
     render();
     canvas.toBlob(async (b) => {
@@ -1155,7 +1058,7 @@
     cancelAnimationFrame(fxRaf);
   }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
-  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, video: () => sessionVideo, clips: () => clips.map((c) => c ? [c.A.length, c.B.length] : [0, 0]), drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
+  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
   window.addEventListener("pagehide", stopAll);
 
   $("soloBtn").addEventListener("click", () => enterSetup("solo"));

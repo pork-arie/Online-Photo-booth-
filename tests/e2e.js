@@ -157,13 +157,7 @@ async function makeFaceVideo(browser) {
   check('Both prints drop out of the booth slot', (await view(A)) === 'result' && (await view(B)) === 'result' && await A.evaluate(() => document.getElementById('tray').contains(document.getElementById('printBox')) && document.getElementById('printBox').classList.contains('dispense')));
   check('Host has all 8 photos (4 each side)', (await filled(A)) === 8, String(await filled(A)));
   check('Partner has all 8 photos', (await filled(B)) === 8, String(await filled(B)));
-  await A.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 60000 }).catch(() => {});
-  await B.waitForFunction(() => !document.getElementById('videoBtn').disabled, null, { timeout: 60000 }).catch(() => {});
-  check('Both partners get the booth video of the session', !(await A.isDisabled('#videoBtn')) && !(await B.isDisabled('#videoBtn')));
-  const tv = await A.evaluate(async () => { const b = window.__fbTest.video(); return b ? { size: b.size, type: b.type } : null; });
-  const cl = await A.evaluate(() => window.__fbTest.clips());
-  check('Every shot has a pose clip of both people', cl.length === 4 && cl.every(([x, y]) => x >= 15 && y >= 15), JSON.stringify(cl));
-  check('Together video is made (both people in every frame)', !!tv && tv.size > 50000, tv ? `${Math.round(tv.size / 1024)} KB ${tv.type}` : 'none');
+  check('Together: only Save print, no Save video', (await A.locator('#videoBtn').count()) === 0 && (await B.locator('#videoBtn').count()) === 0);
   check('Print saves as PNG', (await A.evaluate(() => new Promise((r) => document.getElementById('strip').toBlob((x) => r(x ? x.size : 0))))) > 0);
   await A.screenshot({ path: OUT + '/booth-host.png', fullPage: true });
   await B.screenshot({ path: OUT + '/booth-partner.png', fullPage: true });
@@ -215,7 +209,6 @@ async function makeFaceVideo(browser) {
   const sdl = S.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await S.click('#saveBtn'); const sd = await sdl;
   check('Photos: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
-  check('Photos: no session video button (nothing was recorded)', await S.isHidden('#videoBtn'));
   await S.screenshot({ path: OUT + '/photos-mode.png', fullPage: true });
   await S.goto('http://localhost:8080/solo/?nosw=1'); await S.waitForTimeout(1200);
   check('Old /solo/ link opens Use my photos', (await S.textContent('#modeTag').catch(() => '')) === 'Your photos' && await S.isVisible('#photoPick'));
@@ -280,33 +273,8 @@ async function makeFaceVideo(browser) {
   check('Just me saves the print', !!jd, jd ? jd.suggestedFilename() : '');
   check('Countdown beeps and shutter sounds play', (await J.evaluate(() => window.__fbTest.sounds())) >= 16, String(await J.evaluate(() => window.__fbTest.sounds())));
   check('The print develops like instant film', await J.evaluate(() => document.getElementById('strip').classList.contains('develop')));
-  // Save video: a moving version of the strip (each photo plays the pose clip), no REC or countdown
   check('No REC badge or recording overlay', (await J.locator('#recDot').count()) === 0);
-  await J.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 60000 }).catch(() => {});
-  check('Booth video is ready after the session', !(await J.isDisabled('#videoBtn')), await J.textContent('#status'));
-  const vdl = J.waitForEvent('download', { timeout: 10000 }).catch(() => null);
-  await J.click('#videoBtn'); const vd = await vdl; let vidInfo = '', vidOk = false, vidFile = '';
-  if (vd) { vidFile = OUT + '/strip-video' + path.extname(vd.suggestedFilename()); fs.copyFileSync(await vd.path(), vidFile); const sz = fs.statSync(vidFile).size; vidOk = sz > 50000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(sz / 1024)} KB`; }
-  check('Save video saves the moving strip', vidOk, vidInfo);
-  if (vidFile) {
-    const V = await J.context().newPage();
-    await V.setContent('<video id=v muted style="width:300px"></video>');
-    const info = await V.evaluate(async (b64) => {
-      const v = document.getElementById('v');
-      v.src = URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))]));
-      await new Promise((r) => { v.onloadeddata = r; v.onerror = r; });
-      if (!isFinite(v.duration)) { v.currentTime = 1e6; await new Promise((r) => { v.ontimeupdate = r; setTimeout(r, 2000); }); }
-      const shot = async (t) => { await new Promise((r) => { v.onseeked = r; v.currentTime = t; }); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; const g = c.getContext('2d'); g.drawImage(v, 0, 0); return g.getImageData(0, 0, c.width, Math.round(c.height * .22)).data; };
-      // compare a few moments of the clip loop (on a slow computer two moments can land on similar frames)
-      const a = await shot(0.4); let diff = 0;
-      for (const t of [0.9, 1.4, 1.9, 2.4]) { const b = await shot(t); let n = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 60) n++; diff = Math.max(diff, n); }
-      return { d: v.duration, w: v.videoWidth, h: v.videoHeight, diff };
-    }, fs.readFileSync(vidFile).toString('base64'));
-    check('The video is the strip (tall like the print)', info.h > info.w * 1.5, `${info.w}x${info.h}, ${info.d.toFixed(1)} s`);
-    check('The photos in the strip move (pose clips play)', info.diff > 500, `${info.diff} pixels changed in shot 1`);
-    for (const t2 of [0.5, 2.0, info.d - 0.3]) { await V.evaluate((t3) => new Promise((r) => { const v = document.getElementById('v'); v.onseeked = r; v.currentTime = t3; }), t2); await V.waitForTimeout(100); await V.locator('#v').screenshot({ path: OUT + `/strip-video-${t2.toFixed(1)}.png` }); }
-    await V.close();
-  }
+  check('Only Save print: no Save video button', (await J.locator('#videoBtn').count()) === 0 && await J.isVisible('#saveBtn'));
   await J.screenshot({ path: OUT + '/result.png', fullPage: true });
   await J.click('#againBtn');
   check('Shoot again goes back to the camera', (await view(J)) === 'shoot' && await J.isVisible('#shootBtn'));

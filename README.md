@@ -18,7 +18,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 
 1. **Choose your look.** Before any camera turns on, pick your layout, film, design, poses and caption, with a big preview of your print beside them.
 2. **Shoot.** Tap **Start camera** (or **Open my booth** in Together). Now the screen shows only your camera, the poses beside it and the shutter button. To change something, tap **Edit look** and the settings slide in from the side.
-3. **Your print drops out.** After the last flash, the strip feeds out of the booth slot with a motor sound, settles and develops. Then save it, save the video, **Shoot again** or **Edit look**.
+3. **Your print drops out.** After the last flash, the strip feeds out of the booth slot with a motor sound, settles and develops. Then save it, **Shoot again** or **Edit look**.
 
 ![Your print feeding out of the booth slot](docs/print-drop.png)
 
@@ -28,7 +28,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
-5. **Save the print**, or **Save video** for the moving strip (see below). **Share print** sends it straight to apps on your phone.
+5. **Save the print**. **Share print** sends it straight to apps on your phone.
 
 If the connection drops for a moment, the booth reconnects by itself.
 
@@ -58,7 +58,7 @@ The **Design** tab shows a small live preview of your print in every style, so y
 | **Instant** | Little tilted instant photos on a table, with a handwritten caption |
 | **Neon** | Dark grid with glowing pink and cyan frames |
 
-The **season** themes (Pasko, Valentine, Summer, Spring, Halloween, New Year) are in the same tab. The design also applies to the moving-strip video, and in Together it's synced to both screens.
+The **season** themes (Pasko, Valentine, Summer, Spring, Halloween, New Year) are in the same tab. In Together the design is synced to both screens.
 
 ![Design tab with previews of each style](docs/designs.png)
 
@@ -74,14 +74,11 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 
 ![Puppy sticker following a face](docs/stickers.png)
 
-## Save the print and the booth video
+## Save the print
 
-When your shots are done, the print slides out and develops like an instant photo, with a burst of confetti. Then:
+When your shots are done, the print drops out of the slot and develops like an instant photo, with a burst of confetti. Tap **Save print** for the full strip as a PNG picture.
 
-- **Save print:** the full strip as a PNG picture.
-- **Save video:** a moving version of your strip, like the "live strips" from real photo booths. During each countdown the booth quietly keeps a short clip of you posing (and your partner in Together). Afterwards it makes a video of your print where every photo plays its clip forward and back, with your frame, film look, poses and caption, and ends on the finished strip. There's no countdown or REC badge in the video. It's made on your phone (MP4 on most phones, WebM in some browsers) and isn't uploaded anywhere.
-
-On iPhone and iPad, saving opens the share sheet. Tap **Save Image** or **Save Video** to put it in Photos.
+On iPhone and iPad, saving opens the share sheet. Tap **Save Image** to put it in Photos.
 
 ## Features
 
@@ -134,7 +131,7 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 |---|---|
 | `index.html` | The page: start screen and booth layout |
 | `css/booth.css` | All the styles, light and dark |
-| `js/booth.js` | The app: camera, connection, shooting, print and the session video |
+| `js/booth.js` | The app: camera, connection, shooting and the print |
 | `js/looks.js` | Layouts, film looks, frame colors and season themes |
 | `js/designs.js` | Print designs: Classic, Modern, Brutalist, Editorial, Film, Instant, Neon |
 | `js/poses.js` | Pose artwork: classic and meme, solo and duo |
@@ -187,12 +184,12 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that settings sync both ways through the Edit look drawer
 - that both prints drop out of the slot
 - that both screens get the same pose and countdown
-- that all 8 photos arrive (4 from each person), and both partners get the moving-strip video with clips of both people
+- that all 8 photos arrive (4 from each person)
 - that saving downloads the print
 - that a dropped connection reconnects by itself and the video comes back
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- Just me: the Design tab (7 styles and 6 seasons with previews, picking one restyles the print), the camera, pose list and swapping, 4 shots, sounds, the print dropping out and developing, Shoot again, saving the print, and the moving-strip video (tall like the print, with the photos moving)
+- Just me: the Design tab (7 styles and 6 seasons with previews, picking one restyles the print), the camera, pose list and swapping, 4 shots, sounds, the print dropping out and developing, Shoot again, and saving the print (with no Save video button)
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces
