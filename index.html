@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Urbanist:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Caveat:wght@500;700&family=Comfortaa:wght@400;600;700&family=Instrument+Serif:ital@0;1&family=Space+Mono:wght@400;700&family=Urbanist:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="css/booth.css">
 </head>
 <body>
@@ -33,11 +33,45 @@
 
 <main>
   <section class="wrap lobby" id="lobby">
-    <header class="intro">
-      <p class="kicker">A photo booth in your browser</p>
-      <h1 class="display">Strike a pose. <em>Keep the strip.</em></h1>
-      <p class="lede">Shoot on your own, or with someone far away while you see each other live. Every booth has pose cards, a 3‑2‑1 countdown and one printed strip at the end.</p>
-    </header>
+    <div class="hero">
+      <header class="intro">
+        <p class="kicker">A photo booth in your browser</p>
+        <h1 class="display">Strike a pose. <em>Keep the strip.</em></h1>
+        <p class="lede">Step behind the curtain on your own, or with someone far away while you see each other live. Pose cards, a 3‑2‑1 countdown, and a printed strip that drops out at the end.</p>
+      </header>
+      <div class="booth-art" aria-hidden="true">
+        <svg viewBox="0 0 380 440" role="presentation">
+          <ellipse class="ba-floor" cx="190" cy="418" rx="150" ry="14"/>
+          <rect class="ba-body" x="58" y="78" width="264" height="330" rx="20"/>
+          <rect class="ba-side" x="58" y="78" width="96" height="330" rx="20"/>
+          <rect class="ba-trim" x="58" y="384" width="264" height="24" rx="8"/>
+          <g class="ba-sign">
+            <rect x="96" y="22" width="188" height="56" rx="14"/>
+            <text x="190" y="59" text-anchor="middle">PHOTOS</text>
+            <g class="ba-bulbs">
+              <circle cx="108" cy="34" r="4"/><circle cx="132" cy="30" r="4"/><circle cx="156" cy="28" r="4"/><circle cx="180" cy="27" r="4"/><circle cx="204" cy="27" r="4"/><circle cx="228" cy="28" r="4"/><circle cx="252" cy="30" r="4"/><circle cx="272" cy="34" r="4"/>
+            </g>
+          </g>
+          <rect class="ba-window" x="174" y="104" width="128" height="262" rx="10"/>
+          <g class="ba-curtain">
+            <path d="M178 108 h120 v254 c-10 -6 -20 4 -30 -2 c-10 -6 -20 4 -30 -2 c-10 -6 -20 4 -30 -2 c-10 -6 -20 4 -30 -2 Z"/>
+            <path class="ba-fold" d="M196 110 v248 M220 110 v246 M244 110 v248 M268 110 v246 M290 110 v248"/>
+          </g>
+          <rect class="ba-rod" x="168" y="100" width="140" height="8" rx="4"/>
+          <rect class="ba-screen" x="74" y="108" width="64" height="74" rx="10"/>
+          <circle class="ba-lens" cx="106" cy="145" r="15"/><circle class="ba-lens-in" cx="106" cy="145" r="7"/>
+          <circle class="ba-flash" cx="106" cy="200" r="10"/>
+          <text class="ba-label" x="106" y="250" text-anchor="middle">SMILE</text>
+          <rect class="ba-slot" x="80" y="300" width="52" height="8" rx="4"/>
+          <g class="ba-strip-clip"><clipPath id="baClip"><rect x="76" y="304" width="60" height="120"/></clipPath>
+            <g clip-path="url(#baClip)"><g class="ba-strip">
+              <rect class="ba-paper" x="88" y="304" width="36" height="96" rx="2"/>
+              <rect class="ba-pic" x="92" y="308" width="28" height="19"/><rect class="ba-pic" x="92" y="331" width="28" height="19"/><rect class="ba-pic" x="92" y="354" width="28" height="19"/><rect class="ba-pic" x="92" y="377" width="28" height="19"/>
+            </g></g>
+          </g>
+        </svg>
+      </div>
+    </div>
     <div class="modes">
       <article class="mode">
         <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
@@ -72,13 +106,19 @@
     <p class="note" id="lobbyNote">Allow your camera when your browser asks.</p>
   </section>
 
-  <section class="wrap booth" id="booth" hidden>
+  <section class="wrap booth" id="booth" data-view="setup" hidden>
     <div class="session">
       <div class="sess-left">
         <span class="mode-tag" id="modeTag">Together</span>
         <span class="code-wrap" id="codeWrap"><span class="lbl">Code</span><b class="codechip" id="codeChip">------</b><button class="btn sm" id="shareBtn" type="button">Share link</button></span>
       </div>
-      <button class="btn sm" id="leaveBtn" type="button">Leave</button>
+      <div class="sess-right">
+        <button class="btn sm" id="lookBtn" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+          Edit look
+        </button>
+        <button class="btn sm" id="leaveBtn" type="button">Leave</button>
+      </div>
     </div>
 
     <div class="camera">
@@ -118,17 +158,38 @@
       <div class="thumbs" id="thumbs" aria-label="Shots taken"></div>
     </div>
 
-    <aside class="side" aria-label="Booth settings">
+    <section class="result" id="result" aria-label="Your print">
+      <div class="dispenser">
+        <div class="slot-plate" aria-hidden="true"><span class="slot-mouth"></span><span class="slot-label">Your strip</span></div>
+        <div class="tray" id="tray"></div>
+      </div>
+      <p class="status" id="resultStatus" role="status" aria-live="polite"></p>
+      <div class="result-actions">
+        <button class="btn" id="againBtn" type="button">Shoot again</button>
+        <button class="btn" id="lookBtn2" type="button">Edit look</button>
+      </div>
+    </section>
+    <div class="scrim" id="scrim" hidden></div>
+
+    <aside class="side" id="side" aria-label="Booth settings">
+      <div class="side-head">
+        <div><p class="kicker" id="setupKicker">Step 1 of 2</p><h2 class="side-title" id="sideTitle">Choose your look</h2></div>
+        <button class="btn sm" id="closeLook" type="button">Done</button>
+      </div>
       <div class="tabs" role="tablist" aria-label="Settings">
         <button class="tab" role="tab" id="tabBtn-look" aria-controls="tab-look" aria-selected="true" type="button">Look</button>
+        <button class="tab" role="tab" id="tabBtn-design" aria-controls="tab-design" aria-selected="false" type="button">Design</button>
         <button class="tab" role="tab" id="tabBtn-poses" aria-controls="tab-poses" aria-selected="false" type="button">Poses</button>
         <button class="tab" role="tab" id="tabBtn-caption" aria-controls="tab-caption" aria-selected="false" type="button">Caption</button>
       </div>
       <div class="panel" id="tab-look" role="tabpanel" aria-labelledby="tabBtn-look">
         <div class="group"><h3>Layout</h3><div class="chips" id="layouts"></div></div>
         <div class="group"><h3>Film</h3><div class="chips" id="films"></div></div>
-        <div class="group"><h3>Frame</h3><div class="chips" id="looks"></div></div>
-        <div class="group"><h3>Season</h3><div class="chips" id="seasons"></div></div>
+        <div class="group"><h3>Frame color</h3><div class="chips" id="looks"></div><p class="note">Used by the Classic and Modern designs.</p></div>
+      </div>
+      <div class="panel" id="tab-design" role="tabpanel" aria-labelledby="tabBtn-design" hidden>
+        <div class="group"><h3>Style</h3><div class="design-grid" id="designs"></div></div>
+        <div class="group"><h3>Seasons</h3><div class="design-grid" id="seasonTiles"></div></div>
       </div>
       <div class="panel" id="tab-poses" role="tabpanel" aria-labelledby="tabBtn-poses" hidden>
         <div class="group"><h3>Pose guide</h3><div class="chips" id="poseModes"></div></div>
@@ -148,14 +209,18 @@
         <label class="check"><input type="checkbox" id="capHl" checked> Highlight caption</label>
         <label class="check"><input type="checkbox" id="showDate" checked> Print the date</label>
       </div>
-      <div class="print-box">
-        <div class="row"><h3 class="lbl">Your print</h3></div>
+      <div class="print-box" id="printBox">
+        <div class="row print-head"><h3 class="lbl">Your print</h3></div>
         <canvas id="strip" class="strip" role="img" aria-label="Your print"></canvas>
         <div class="print-actions">
           <button class="btn solid" id="saveBtn" type="button">Save print</button>
           <button class="btn" id="videoBtn" type="button" disabled>Save video</button>
           <button class="btn" id="shareImgBtn" type="button" hidden>Share print</button>
         </div>
+      </div>
+      <div class="setup-cta" id="setupCta">
+        <button class="btn accent lg" id="startCamBtn" type="button">Start camera</button>
+        <p class="note" id="setupNote">You can change all of this later with Edit look.</p>
       </div>
     </aside>
   </section>
@@ -164,6 +229,7 @@
 <script src="config.js"></script>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script src="js/looks.js"></script>
+<script src="js/designs.js"></script>
 <script src="js/poses.js"></script>
 <script src="js/stickers.js"></script>
 <script src="js/booth.js"></script>

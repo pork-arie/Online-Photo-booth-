@@ -237,3 +237,99 @@ h1.display em { font-style: normal; color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) { .count, .flash.go { animation: none; } }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ======================= Landing: an illustrated booth ======================= */
+.hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(240px, .85fr); gap: 28px; align-items: center; }
+.booth-art svg { display: block; width: 100%; max-width: 380px; height: auto; margin: 0 auto; overflow: visible; }
+.ba-floor { fill: var(--ink); opacity: .08; }
+.ba-body { fill: var(--accent); }
+.ba-side { fill: color-mix(in srgb, var(--accent) 78%, #000); }
+.ba-trim { fill: color-mix(in srgb, var(--accent) 62%, #000); }
+.ba-sign rect { fill: var(--ink); }
+.ba-sign text { fill: var(--bg); font: 700 24px var(--font-display); letter-spacing: .2em; }
+.ba-bulbs circle { fill: #F2B33D; animation: bulb 1.1s ease-in-out infinite alternate; }
+.ba-bulbs circle:nth-child(even) { animation-delay: .55s; }
+@keyframes bulb { from { opacity: .35; } to { opacity: 1; } }
+.ba-window { fill: #0E1110; }
+.ba-curtain path:first-child { fill: #C9475C; }
+.ba-fold { fill: none; stroke: rgba(0, 0, 0, .2); stroke-width: 3; }
+.ba-curtain { transform-origin: 238px 104px; animation: sway 6s ease-in-out infinite; }
+@keyframes sway { 50% { transform: skewX(-1.2deg); } }
+.ba-rod { fill: #D9CBA9; }
+.ba-screen { fill: #0F1312; }
+.ba-lens { fill: #27312D; } .ba-lens-in { fill: #7CC8AC; }
+.ba-flash { fill: #FFF4CF; animation: ba-flash 4.5s infinite; }
+@keyframes ba-flash { 0%, 38% { opacity: .3; } 40% { opacity: 1; filter: drop-shadow(0 0 14px #fff); } 48%, 100% { opacity: .3; } }
+.ba-label { fill: #fff; opacity: .75; font: 700 11px var(--font-body); letter-spacing: .22em; }
+.ba-slot { fill: #070908; }
+.ba-paper { fill: #FAFAF7; } .ba-pic { fill: #BFD3C8; }
+.ba-strip { animation: ba-strip 4.5s cubic-bezier(.3, .7, .3, 1) infinite; }
+@keyframes ba-strip { 0%, 40% { transform: translateY(-100px); opacity: 1; } 75% { transform: translateY(0); opacity: 1; } 92% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(0); opacity: 0; } }
+@media (max-width: 900px) { .hero { grid-template-columns: minmax(0, 1fr); gap: 8px; } .booth-art { order: -1; } .booth-art svg { max-width: 220px; } }
+
+/* ======================= Booth steps: set up → shoot → your print ======================= */
+.booth { grid-template-columns: minmax(0, 1fr); max-width: 1040px; margin-inline: auto; }
+.sess-right { display: flex; gap: 8px; align-items: center; }
+.side-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.side-head .kicker { margin: 0 0 6px; }
+.side-title { margin: 0; font: 700 clamp(24px, 3vw, 32px)/1.1 var(--font-display); letter-spacing: -.03em; }
+.result, .setup-cta { display: none; }
+.booth:not([data-view="result"]) .print-actions { display: none; }
+
+/* 1. set up: settings beside a large preview, no camera */
+[data-view="setup"] .camera, [data-view="setup"] #lookBtn, [data-view="setup"] #closeLook { display: none; }
+[data-view="setup"] .side { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 360px); column-gap: 36px; row-gap: 18px; align-items: start; }
+[data-view="setup"] .side > * { grid-column: 1; }
+[data-view="setup"] .setup-cta { display: grid; gap: 10px; grid-column: 2; grid-row: 1; }
+[data-view="setup"] #printBox { grid-column: 2; grid-row: 2 / span 4; position: sticky; top: 16px; }
+[data-view="setup"] .setup-cta .btn { width: 100%; }
+@media (max-width: 900px) {
+  [data-view="setup"] .side { display: flex; flex-direction: column; gap: 16px; }
+  [data-view="setup"] #printBox { order: 2; position: static; }
+  [data-view="setup"] .side-head { order: 1; } [data-view="setup"] .tabs { order: 3; } [data-view="setup"] .panel { order: 4; }
+  [data-view="setup"] .setup-cta { order: 9; position: sticky; bottom: 0; z-index: 5; padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(transparent, var(--bg) 30%); }
+  [data-view="setup"] #strip.strip, [data-view="setup"] #strip.strip.wp { width: min(100%, 210px); }
+}
+
+/* 2 and 3: settings slide in from the side when you tap Edit look */
+[data-view="shoot"] .side, [data-view="result"] .side {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 45; width: min(440px, 100vw); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--bg); box-shadow: -30px 0 60px -30px var(--shadow); border-left: 1px solid var(--line);
+  padding: calc(18px + env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) 18px;
+  transform: translateX(105%); visibility: hidden; transition: transform .38s cubic-bezier(.2, .8, .2, 1), visibility 0s linear .38s;
+}
+.booth.look-open .side { transform: none; visibility: visible; transition: transform .38s cubic-bezier(.2, .8, .2, 1); }
+.scrim { position: fixed; inset: 0; z-index: 44; background: rgba(10, 12, 11, .38); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px); }
+[data-view="shoot"] .camera { max-width: 920px; width: 100%; margin-inline: auto; }
+
+/* 3. your print drops out of the slot */
+[data-view="result"] .camera { display: none; }
+[data-view="result"] .result { display: grid; justify-items: center; gap: 14px; padding-block: 8px 28px; }
+.dispenser { display: grid; justify-items: center; width: 100%; }
+.slot-plate { position: relative; z-index: 2; width: min(460px, 94%); height: 48px; border-radius: 18px 18px 12px 12px; display: grid; place-items: center;
+  background: linear-gradient(#323836, #161918); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 14px 28px -16px rgba(0, 0, 0, .55); }
+.slot-mouth { width: 80%; height: 9px; border-radius: 9px; background: #040505; box-shadow: inset 0 2px 4px #000; }
+.slot-label { position: absolute; left: 18px; top: 6px; font: 700 9px var(--font-body); letter-spacing: .22em; text-transform: uppercase; color: rgba(255, 255, 255, .45); }
+.tray { margin-top: -10px; overflow: hidden; width: 100%; display: grid; justify-items: center; padding: 0 24px 34px; }
+.result #printBox { background: none; padding: 0; gap: 18px; }
+.result .print-head { display: none; }
+.result #strip.strip { width: min(330px, 76vw); } .result #strip.strip.wp { width: min(420px, 86vw); }
+.result #strip.grid { width: min(620px, 92vw); } .result #strip.polaroid { width: min(460px, 90vw); }
+#printBox.dispense #strip { animation: feed 2.2s steps(9, end) both, settle .6s cubic-bezier(.3, 1.6, .5, 1) 2.2s forwards, develop-film 3.4s ease-out .3s both; }
+@keyframes feed { from { transform: translateY(-104%); } to { transform: translateY(-5%); } }
+@keyframes settle { from { transform: translateY(-5%) rotate(0); } 60% { transform: translateY(1.5%) rotate(-.6deg); } to { transform: none; } }
+#printBox.dispense .print-actions { animation: rise-in .5s ease-out 2.6s both; }
+.result-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+#resultStatus { margin: 0; }
+
+/* Design tab: style and season tiles with live previews */
+.design-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 10px; }
+.dtile { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 14px; padding: 8px 8px 10px; display: grid; gap: 7px; justify-items: center; cursor: pointer; font: 600 13px var(--font-body); transition: border-color .15s, box-shadow .15s, transform .15s; }
+.dtile canvas { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: 8px; background: var(--sunk); }
+.dtile:hover { border-color: var(--muted); transform: translateY(-1px); }
+.dtile[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+
+@media (prefers-reduced-motion: reduce) {
+  .ba-bulbs circle, .ba-curtain, .ba-flash, .ba-strip, #printBox.dispense #strip, #printBox.dispense .print-actions { animation: none; }
+  .side, .booth.look-open .side { transition: none; }
+}

@@ -2,7 +2,7 @@
 
 [![Test the booth](https://github.com/pork-arie/Online-Photo-booth-/actions/workflows/test.yml/badge.svg)](https://github.com/pork-arie/Online-Photo-booth-/actions/workflows/test.yml)
 
-A photo booth in your browser. Shoot on your own, or with someone far away while you see and hear each other live. Every booth has pose cards, a 3‑2‑1 countdown and one printed strip at the end.
+A photo booth in your browser. Shoot on your own, or with someone far away while you see and hear each other live. Every booth has pose cards, a 3‑2‑1 countdown, and a printed strip that drops out of the slot at the end.
 
 ![Start page with three ways to shoot](docs/start-page.png)
 
@@ -14,9 +14,17 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 | **Together** | Two people far apart see and hear each other live, pose together and both get the same print | Needed |
 | **Use my photos** | Turn photos from your gallery into a strip with the same looks. Face stickers go on the faces in your photos too | Not needed after the first visit |
 
+### How a booth works
+
+1. **Choose your look.** Before any camera turns on, pick your layout, film, design, poses and caption, with a big preview of your print beside them.
+2. **Shoot.** Tap **Start camera** (or **Open my booth** in Together). Now the screen shows only your camera, the poses beside it and the shutter button. To change something, tap **Edit look** and the settings slide in from the side.
+3. **Your print drops out.** After the last flash, the strip feeds out of the booth slot with a motor sound, settles and develops. Then save it, save the video, **Shoot again** or **Edit look**.
+
+![Your print feeding out of the booth slot](docs/print-drop.png)
+
 ### Together, step by step
 
-1. **Start a booth.** Allow your camera and microphone. You get a 6‑letter code and a **Share link** button.
+1. **Start a booth.** Choose your look, tap **Open my booth** and allow your camera and microphone. You get a 6‑letter code and a **Share link** button.
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
@@ -35,6 +43,24 @@ If the connection drops for a moment, the booth reconnects by itself.
 ## Works offline and installs like an app
 
 After you've opened the booth once, **Just me** and **Use my photos** keep working with no internet. On your phone, use **Add to Home Screen** (Safari) or **Install app** (Chrome) to keep Flashbulb on your home screen. **Together** still needs internet, because it connects two phones.
+
+## Print designs
+
+The **Design** tab shows a small live preview of your print in every style, so you can see it before you pick:
+
+| Design | Look |
+|---|---|
+| **Classic** | Your frame color with rounded type and a marker highlight |
+| **Modern** | Clean white card, soft shadows, rounded photos, small spaced type |
+| **Brutalist** | Heavy black borders, hard shadows, numbered frames, big black type with an orange bar |
+| **Editorial** | Thin rules and an italic serif caption, like a magazine |
+| **Film** | Black film stock with sprocket holes and orange edge numbers |
+| **Instant** | Little tilted instant photos on a table, with a handwritten caption |
+| **Neon** | Dark grid with glowing pink and cyan frames |
+
+The **season** themes (Pasko, Valentine, Summer, Spring, Halloween, New Year) are in the same tab. The design also applies to the moving-strip video, and in Together it's synced to both screens.
+
+![Design tab with previews of each style](docs/designs.png)
 
 ## Face stickers
 
@@ -61,17 +87,19 @@ On iPhone and iPad, saving opens the share sheet. Tap **Save Image** or **Save V
 
 - **Layouts:** Strip (4 shots), Grid (2 × 2) or Instant (1 big shot). In Together, you and your partner are side by side in every frame.
 - **Film looks:** Natural, Silver, Sepia, Faded film, Cool, Vivid
-- **Frames:** Paper, Onyx, Blush, Sage, Sand, Navy
+- **Designs:** Classic, Modern, Brutalist, Editorial, Film, Instant and Neon (see above)
+- **Frame colors:** Paper, Onyx, Blush, Sage, Sand, Navy, used by the Classic and Modern designs
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
+- **Start page:** an illustrated photo booth with blinking bulbs, a swaying curtain, a flash and a strip coming out of the slot
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
 - **Solo and Duo poses:** Solo poses have one figure. Duo poses have two figures side by side (Big heart, High five, Point at each other, Blow & catch, Secret and more), so in Together each person copies their half. Beside the camera your figure is black and your partner's is green, labeled You and Partner. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
 - **Poses beside the camera:** the poses for your shots sit in a column next to the camera (on phones, in a swipeable row right under it, so the camera keeps the full width). Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
-- **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption
+- **Settings in four tabs:** Look (layout, film, frame color), Design (styles and seasons), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption. Before shooting they fill the screen; while shooting they're behind **Edit look**.
 - **Synced settings in Together:** whatever either person changes appears on both screens
 - **Sounds:** beeps on 3, 2, 1 and a shutter click on the flash. The speaker button turns them off.
-- **Motion:** the print ejects and develops, confetti when it's ready, shots pop in, and stickers wiggle when picked. All of this switches off if your phone is set to reduce motion.
+- **Motion:** the print feeds out of the slot and develops, confetti when it's ready, shots pop in, and stickers wiggle when picked. All of this switches off if your phone is set to reduce motion.
 - **Lighter mode:** on slower phones the booth switches to lighter face tracking and a smaller camera picture by itself, so it stays smooth.
 
 ## Put it online (GitHub Pages)
@@ -108,6 +136,7 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 | `css/booth.css` | All the styles, light and dark |
 | `js/booth.js` | The app: camera, connection, shooting, print and the session video |
 | `js/looks.js` | Layouts, film looks, frame colors and season themes |
+| `js/designs.js` | Print designs: Classic, Modern, Brutalist, Editorial, Film, Instant, Neon |
 | `js/poses.js` | Pose artwork: classic and meme, solo and duo |
 | `js/stickers.js` | Face sticker artwork and placement |
 | `config.js` | Your settings: relay server and own connection server |
@@ -124,11 +153,11 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 
 ### On your phones (after GitHub Pages is on)
 
-1. On phone 1, open `https://pork-arie.github.io/Online-Photo-booth-/`, tap **Start a booth** and allow the camera and microphone.
+1. On phone 1, open `https://pork-arie.github.io/Online-Photo-booth-/`, tap **Start a booth**, pick a design, tap **Open my booth** and allow the camera and microphone.
 2. Tap **Share link** and send it to phone 2. On phone 2, open the link and tap **Join**.
 3. Check that each phone shows both cameras, with you on the left on the host phone, and that you can hear each other.
-4. Change the film or season on one phone. It should change on the other.
-5. Tap **Start 4 shots**. Both phones should show the same pose and countdown, and after 4 flashes both should show the same print.
+4. Tap **Edit look** and change the film or design on one phone. It should change on the other.
+5. Tap **Start 4 shots**. Both phones should show the same pose and countdown, and after 4 flashes the same print should drop out on both.
 6. Tap **Save print** and check the picture is in your downloads or photos.
 7. Go back, tap **Just me** and take a strip on your own.
 8. Turn on airplane mode and open the link again: **Just me** should still work.
@@ -154,17 +183,19 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 
 - live video and audio in both directions
 - that the invite link fills in the code
-- that settings sync both ways
+- that Choose your look comes first with the camera off, and the design picked there reaches your partner
+- that settings sync both ways through the Edit look drawer
+- that both prints drop out of the slot
 - that both screens get the same pose and countdown
 - that all 8 photos arrive (4 from each person), and both partners get the moving-strip video with clips of both people
 - that saving downloads the print
 - that a dropped connection reconnects by itself and the video comes back
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, saving the print, and the moving-strip video (tall like the print, with the photos moving)
+- Just me: the Design tab (7 styles and 6 seasons with previews, picking one restyles the print), the camera, pose list and swapping, 4 shots, sounds, the print dropping out and developing, Shoot again, saving the print, and the moving-strip video (tall like the print, with the photos moving)
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces
-- Use my photos: adding photos, picking a slot, stickers placed on a face in a photo, saving, and the old `/solo/` link
+- Use my photos: adding photos, picking a slot, stickers placed on a face in a photo, the print dropping out once every slot is filled, saving, and the old `/solo/` link
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

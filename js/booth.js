@@ -1,9 +1,10 @@
 // Flashbulb booth: camera, connection, shooting, print, exports.
 (() => {
+  const { DESIGNS, DESIGN_FONTS } = window.FB;
   const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, figureBody, SVG_OPEN, figureSVG, duoSVG, DOWN_L, MEME_DUO, CLASSIC_DUO, DOWN_R, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
   const state = {
     photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
-    layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true,
+    layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true, design: "modern",
   };
   let poseMode = "meme", posePrint = true, poseFor = "solo"; // poseFor: one person ("solo") or two side by side ("duo")
   const picks = { classic: [0, 1, 2, 3], meme: [0, 1, 2, 3], classicDuo: [0, 1, 2, 3], memeDuo: [0, 1, 2, 3] };
@@ -87,8 +88,11 @@
     return `${String(d.getDate()).padStart(2, "0")} ${mon} ${d.getFullYear()}  ·  ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   }
 
+  const design = () => DESIGNS[state.design] || DESIGNS.classic;
   function currentFrame() {
-    const t = THEMES[state.theme];
+    const d = design();
+    if (d.palette) return Object.assign({ name: d.label, design: state.design }, d.palette);
+    const t = state.design === "classic" && THEMES[state.theme];
     if (t && t.bg) return { name: t.label, bg: t.bg[0], ink: t.ink, hl: t.hl, theme: state.theme };
     return FRAMES[state.frame];
   }
@@ -135,15 +139,18 @@
   function render() {
     const sp = spec(state.layout), frame = currentFrame();
     canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "") + (canvas.classList.contains("develop") ? " develop" : "");
-    paintBackground(ctx, sp.W, sp.H, frame, sp.W / 600);
+    const d = design();
+    if (d.background) d.background(ctx, sp, frame); else paintBackground(ctx, sp.W, sp.H, frame, sp.W / 600);
     let anySample = false;
+    const place = (src, r, i) => { const draw = () => drawShot(src, r); if (d.shot) d.shot(ctx, r, i, draw, frame); else draw(); };
     sp.slots.forEach((rect, i) => {
       if (state.duo) {
-        halves(rect).forEach(([sd, hr]) => { const s = sourceFor(i, sd); if (s) { drawShot(s.src, hr); anySample = anySample || s.sample; } else drawEmpty(hr, i, frame, sd); });
+        halves(rect).forEach(([sd, hr]) => { const s = sourceFor(i, sd); if (s) { place(s.src, hr, i); anySample = anySample || s.sample; } else drawEmpty(hr, i, frame, sd); });
       } else {
         const s = sourceFor(i);
-        if (s) { drawShot(s.src, rect); anySample = anySample || s.sample; } else drawEmpty(rect, i, frame);
+        if (s) { place(s.src, rect, i); anySample = anySample || s.sample; } else drawEmpty(rect, i, frame);
       }
+      if (d.over) d.over(ctx, rect, i, frame);
       if (rect.pose) drawPose(rect.pose, i, frame, sp.nameSize);
     });
     if (anySample && !state.hideSampleTag) {
@@ -154,6 +161,7 @@
       ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText("SAMPLE", r.x + 25, r.y + 29); ctx.restore();
     }
     const wpOn = withPoses(), cx = sp.W / 2, big = state.layout === "strip" ? (wpOn ? 48 : 42) : state.layout === "grid" ? (wpOn ? 66 : 56) : (wpOn ? 62 : 54);
+    if (d.footer) { ctx.save(); d.footer(ctx, sp, frame, state.caption.trim(), state.showDate ? dateStamp() : "", big); ctx.restore(); return; }
     ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     const cap = state.caption.trim(); let size = big;
     const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
@@ -181,7 +189,7 @@
   /* ---------- small helpers ---------- */
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const params = new URLSearchParams(location.search);
-  function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
+  function setStatus(msg, err) { ["status", "resultStatus"].forEach((id) => { const s = $(id); if (s) { s.textContent = msg || ""; s.classList.toggle("err", !!err); } }); }
   function setPill(mode, text) { const p = $("pill"); p.hidden = false; p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
   function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
   picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length);
@@ -199,9 +207,7 @@
     Object.entries(FILTERS).forEach(([k, v]) => fl.appendChild(chip(v, state.filter === k, () => { state.filter = k; changed(); })));
     const lk = $("looks"); lk.innerHTML = "";
     FRAMES.forEach((f, i) => lk.appendChild(chip(f.name, state.theme === "none" && state.frame === i, () => { state.frame = i; state.theme = "none"; changed(); }, f.bg)));
-    const se = $("seasons"); se.innerHTML = "";
-    se.appendChild(chip("None", state.theme === "none", () => { state.theme = "none"; changed(); }));
-    Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) se.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
+    buildDesigns();
     const pm = $("poseModes"); pm.innerHTML = "";
     [["off", "Off"], ["classic", "Classic"], ["meme", "Meme"]].forEach(([k, l]) => pm.appendChild(chip(l, poseMode === k, () => { poseMode = k; changed(); })));
     const pf = $("poseFor"); pf.innerHTML = "";
@@ -280,13 +286,48 @@
   }
   $("themeBtn").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
   setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  // Design tab: one tile per style and per season, each a small preview of your print
+  function designTile(label, pressed, onClick, hint) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "dtile"; b.setAttribute("aria-pressed", String(pressed));
+    const c = document.createElement("canvas"); c.width = 132; c.height = 176; c.setAttribute("aria-hidden", "true");
+    const t = document.createElement("span"); t.className = "dname"; t.textContent = label;
+    b.append(c, t); if (hint) b.title = hint; b.addEventListener("click", onClick); return { b, c };
+  }
+  let tilesTodo = [];
+  function buildDesigns() {
+    const ds = $("designs"), se = $("seasonTiles"); if (!ds) return;
+    ds.innerHTML = ""; se.innerHTML = ""; tilesTodo = [];
+    Object.entries(DESIGNS).forEach(([k, d]) => {
+      const pressed = state.design === k && (k !== "classic" || state.theme === "none");
+      const t = designTile(d.label, pressed, () => { state.design = k; if (k === "classic") state.theme = "none"; changed(); }, d.hint);
+      ds.appendChild(t.b); tilesTodo.push([t.c, k, "none"]);
+    });
+    Object.entries(THEMES).forEach(([k, th]) => {
+      if (!th.bg) return;
+      const t = designTile(th.label + (k === seasonNow() ? " ✦" : ""), state.design === "classic" && state.theme === k, () => { state.design = "classic"; state.theme = k; changed(); });
+      se.appendChild(t.b); tilesTodo.push([t.c, "classic", k]);
+    });
+    if (!$("tab-design").hidden) paintTiles();
+  }
+  // previews are real renders of your print in each style (only while the Design tab is open)
+  function paintTiles() {
+    if (!tilesTodo.length) return;
+    const keep = [state.design, state.theme], cls = canvas.className;
+    tilesTodo.forEach(([c, k, th]) => {
+      state.design = k; state.theme = th; render();
+      const g = c.getContext("2d"), s = Math.min(c.width / canvas.width, c.height / canvas.height), w = canvas.width * s, h = canvas.height * s;
+      g.clearRect(0, 0, c.width, c.height); g.drawImage(canvas, (c.width - w) / 2, (c.height - h) / 2, w, h);
+    });
+    tilesTodo = []; [state.design, state.theme] = keep; render(); canvas.className = cls;
+  }
   // settings tabs (remembered on this device)
   function showTab(name) {
-    ["look", "poses", "caption"].forEach((t) => { $("tab-" + t).hidden = t !== name; $("tabBtn-" + t).setAttribute("aria-selected", String(t === name)); });
+    ["look", "design", "poses", "caption"].forEach((t) => { $("tab-" + t).hidden = t !== name; $("tabBtn-" + t).setAttribute("aria-selected", String(t === name)); });
+    if (name === "design") paintTiles();
     try { localStorage.setItem("fb-tab", name); } catch {}
   }
-  ["look", "poses", "caption"].forEach((t) => $("tabBtn-" + t).addEventListener("click", () => showTab(t)));
-  try { const t = localStorage.getItem("fb-tab"); if (t === "look" || t === "poses" || t === "caption") showTab(t); } catch {}
+  ["look", "design", "poses", "caption"].forEach((t) => $("tabBtn-" + t).addEventListener("click", () => showTab(t)));
+  try { const t = localStorage.getItem("fb-tab"); if (["look", "design", "poses", "caption"].includes(t)) showTab(t); } catch {}
   $("showDate").addEventListener("change", (e) => { state.showDate = e.target.checked; changed(); });
   $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
   $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
@@ -536,7 +577,47 @@
   const serviceTrouble = (t) => t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed";
   // Keep the link to the connection service alive if it drops for a moment.
   function keepAlive(p) { p.on("disconnected", () => { if (!leaving && !p.destroyed) setTimeout(() => { try { if (p.disconnected && !p.destroyed) p.reconnect(); } catch (e) {} }, 1500); }); }
+  /* ---------- Steps: set up your look (no camera yet) → shoot → your print drops out ---------- */
+  let setupMode = null; // "solo" | "host" | "photos"
+  const boothEl = $("booth");
+  function setView(v) {
+    boothEl.dataset.view = v; closeLook();
+    const pb = $("printBox");
+    if (v === "result") $("tray").appendChild(pb); else $("side").insertBefore(pb, $("setupCta"));
+    $("sideTitle").textContent = v === "setup" ? "Choose your look" : "Edit look";
+    $("setupKicker").hidden = v !== "setup";
+    window.scrollTo(0, 0);
+  }
+  function openLook() { boothEl.classList.add("look-open"); $("scrim").hidden = false; if (!$("tab-design").hidden) paintTiles(); }
+  function closeLook() { boothEl.classList.remove("look-open"); $("scrim").hidden = true; }
+  ["lookBtn", "lookBtn2"].forEach((id) => $(id).addEventListener("click", openLook));
+  $("closeLook").addEventListener("click", closeLook); $("scrim").addEventListener("click", closeLook);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLook(); });
+  function enterSetup(mode) {
+    setupMode = mode; solo = mode !== "host"; photosMode = false;
+    state.duo = mode === "host"; poseFor = state.duo ? "duo" : "solo"; state.mirror = mode !== "photos";
+    $("lobby").hidden = true; boothEl.hidden = false;
+    $("modeTag").textContent = mode === "host" ? "Together" : mode === "photos" ? "Your photos" : "Just me";
+    $("codeWrap").hidden = true; $("pill").hidden = true;
+    $("startCamBtn").textContent = mode === "host" ? "Open my booth" : mode === "photos" ? "Choose photos" : "Start camera";
+    $("setupNote").textContent = mode === "host" ? "Next, your camera and microphone turn on and you get a code to send your partner."
+      : mode === "photos" ? "Next, pick up to 4 photos from your gallery." : "Next, your camera turns on. You can change all of this later with Edit look.";
+    $("againBtn").textContent = mode === "photos" ? "Change photos" : "Shoot again";
+    $("setupNote").classList.remove("err"); $("startCamBtn").disabled = false;
+    setView("setup"); buildUI(); render(); renderThumbs();
+  }
+  $("startCamBtn").addEventListener("click", () => { if (setupMode === "host") startBooth(); else if (setupMode === "photos") startPhotos(); else startSolo(); });
+  // the print feeds out of the slot, drops, and develops
+  function dispense() {
+    setView("result");
+    const pb = $("printBox"); pb.classList.remove("dispense"); void pb.offsetWidth; pb.classList.add("dispense");
+    const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop");
+    motor(calm() ? .4 : 2.2);
+  }
+  $("againBtn").addEventListener("click", () => { setView("shoot"); if (!photosMode) setStatus(solo ? "Ready when you are. Tap Start." : "Ready for another round. Tap Start when you're both ready."); });
+
   function enterBooth() {
+    setView("shoot");
     $("lobby").hidden = true; $("booth").hidden = false;
     state.duo = !solo; poseFor = solo ? "solo" : "duo";
     $("stage").classList.toggle("solo", solo);
@@ -553,9 +634,10 @@
     mySide = "A"; enterBooth();
     setStatus(LAYOUTS[state.layout].n === 1 ? "Tap Take the shot when you're ready." : "Tap Start when you're ready. You'll get a pose and a countdown for each shot.");
   }
-  function lobbyNote(msg, err) { const n = $("lobbyNote"); n.textContent = msg; n.classList.toggle("err", !!err); }
-  function busyBtns(on) { ["startBtn", "joinBtn"].forEach((id) => { $(id).disabled = on; }); }
+  function lobbyNote(msg, err) { ["lobbyNote", "setupNote"].forEach((id) => { const n = $(id); n.textContent = msg; n.classList.toggle("err", !!err); }); }
+  function busyBtns(on) { ["startBtn", "joinBtn", "startCamBtn"].forEach((id) => { $(id).disabled = on; }); }
 
+  const inBooth = () => !$("booth").hidden && $("booth").dataset.view !== "setup"; // past the setup step, camera on
   async function startBooth() {
     if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
     busyBtns(true); lobbyNote("Starting your camera…");
@@ -564,13 +646,13 @@
     const opts = await peerOptions();
     const tryOpen = (attempt) => {
       const p = peer = new Peer(PREFIX + code, opts); keepAlive(p);
-      p.on("open", () => { if (!$("booth").hidden) return; enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
+      p.on("open", () => { if (inBooth()) return; enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
       p.on("error", (e) => {
         if (e.type === "unavailable-id" && attempt < 3) { p.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
         if (serviceTrouble(e.type) && !p.open && attempt < 3) { // the connection service is busy: try again
           lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
         }
-        if (serviceTrouble(e.type)) { if ($("booth").hidden) { lobbyNote("Couldn't reach the booth service. Check your internet and try again.", true); busyBtns(false); } else setPill("wait", "Reconnecting"); return; }
+        if (serviceTrouble(e.type)) { if (!inBooth()) { lobbyNote("Couldn't reach the booth service. Check your internet and try again.", true); busyBtns(false); } else setPill("wait", "Reconnecting"); return; }
         if (e.type !== "peer-unavailable") setStatus("Connection problem: " + e.type, true);
       });
       p.on("connection", (c) => {
@@ -596,21 +678,21 @@
     const tryOpen = (attempt) => {
       const p = peer = new Peer(opts); keepAlive(p);
       p.on("open", () => {
-        if (!$("booth").hidden) return;
+        if (inBooth()) return;
         lobbyNote("Connecting to your partner…");
         const dc = guestConnect();
-        const t = setTimeout(() => { if ($("booth").hidden && (!conn || !conn.open)) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
-        dc.on("open", () => { clearTimeout(t); if ($("booth").hidden) enterBooth(); });
+        const t = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
+        dc.on("open", () => { clearTimeout(t); if (!inBooth()) enterBooth(); });
       });
       p.on("error", (e) => {
         if (e.type === "peer-unavailable") {
-          if (!$("booth").hidden) return; // reconnecting: keep trying quietly
+          if (inBooth()) return; // reconnecting: keep trying quietly
           lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return;
         }
-        if (serviceTrouble(e.type) && !p.open && attempt < 3 && $("booth").hidden) {
+        if (serviceTrouble(e.type) && !p.open && attempt < 3 && !inBooth()) {
           lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
         }
-        if ($("booth").hidden) { lobbyNote("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false); }
+        if (!inBooth()) { lobbyNote("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false); }
       });
     };
     tryOpen(0);
@@ -665,7 +747,7 @@
 
   /* ---------- settings sync ---------- */
   function settingsPayload() {
-    return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, caption: state.caption,
+    return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, design: state.design, caption: state.caption,
       capHl: state.capHl, showDate: state.showDate, poseMode, posePrint, poseFor,
       picks: { classic: picks.classic.slice(), meme: picks.meme.slice(), classicDuo: picks.classicDuo.slice(), memeDuo: picks.memeDuo.slice() } };
   }
@@ -678,6 +760,7 @@
     if (FILTERS[d.filter]) state.filter = d.filter;
     if (Number.isInteger(d.frame) && FRAMES[d.frame]) state.frame = d.frame;
     if (THEMES[d.theme]) state.theme = d.theme;
+    if (DESIGNS[d.design]) state.design = d.design;
     if (typeof d.caption === "string" && document.activeElement !== $("caption")) state.caption = d.caption.slice(0, 28);
     if (typeof d.capHl === "boolean") state.capHl = d.capHl;
     if (typeof d.showDate === "boolean") state.showDate = d.showDate;
@@ -761,8 +844,7 @@
     setStatus("Done! Your print is ready. Making your booth video…");
     setTimeout(() => buildStripVideo().catch(() => setStatus("Couldn't make the booth video. Your print is still ready.", true)), 600); // after the partner's photos arrive
     const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop"); // the print develops like instant film
-    confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120);
-    st.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "nearest" });
+    dispense(); setTimeout(() => { confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120); }, calm() ? 0 : 2400);
   }
   /* ---------- Use my photos: build a strip from pictures you already have ---------- */
   let photosMode = false, pickSlot = null;
@@ -812,6 +894,7 @@
     for (let i = 0; i < 4; i++) if (photosRaw[i]) await placePhoto(i, photosRaw[i]);
     renderPick(); render(); renderThumbs();
     if (fx !== "none") { const n = state.photos.reduce((a, p) => a + (p ? p.faces || 0 : 0), 0); setStatus(n ? `Stickers added to ${n} face${n === 1 ? "" : "s"}.` : "No faces found in your photos, so no stickers were added.", !n); }
+    if (state.photos.slice(0, LAYOUTS[state.layout].n).every(Boolean)) dispense(); // all photos in: the print comes out again with the stickers
   }
   async function readPhoto(file) {
     let bmp;
@@ -835,8 +918,8 @@
     renderPick(); render(); renderThumbs();
     const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop");
     const filled = state.photos.slice(0, n).filter(Boolean).length;
-    setStatus(added ? (filled >= n ? "Your strip is ready! Save it as a picture, GIF or video." : `Added ${added} photo${added === 1 ? "" : "s"}. ${n - filled} to go.`) : "Couldn't open that photo. Try saving it as JPG first.", !added);
-    if (filled >= n && added) confettiBurst();
+    setStatus(added ? (filled >= n ? "Your strip is ready! Save it as a picture." : `Added ${added} photo${added === 1 ? "" : "s"}. ${n - filled} to go.`) : "Couldn't open that photo. Try saving it as JPG first.", !added);
+    if (filled >= n && added) { dispense(); setTimeout(confettiBurst, calm() ? 0 : 2400); }
   }
   function renderPick() {
     const box = $("photoPick"), n = LAYOUTS[state.layout].n; box.innerHTML = ""; box.dataset.n = String(n);
@@ -855,12 +938,12 @@
     document.body.classList.add("photos-mode"); $("stage").classList.add("photos");
     $("modeTag").textContent = "Your photos";
     ["micBtn", "flipBtn", "soundBtn"].forEach((id) => { $(id).hidden = true; });
-    $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false;
+    $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false; $("againBtn").textContent = "Change photos";
     renderPick(); updateVideoBtn(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
   }
   $("photoMany").addEventListener("change", (e) => addPhotos(e.target.files, null));
   $("photoOne").addEventListener("change", (e) => addPhotos(e.target.files, pickSlot));
-  $("photosBtn").addEventListener("click", startPhotos);
+  $("photosBtn").addEventListener("click", () => enterSetup("photos"));
   $("stage").addEventListener("dragover", (e) => { if (photosMode) e.preventDefault(); });
   $("stage").addEventListener("drop", (e) => { if (!photosMode) return; e.preventDefault(); addPhotos(e.dataTransfer && e.dataTransfer.files, null); });
 
@@ -885,6 +968,15 @@
     o.type = "sine"; o.frequency.value = freq;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     o.connect(g).connect(sinkFor(a)); o.start(t); o.stop(t + dur + .02);
+  }
+  function motor(sec) {
+    const a = audio(); if (!a) return; soundsPlayed++;
+    const o = a.createOscillator(), f = a.createBiquadFilter(), g = a.createGain(), t = a.currentTime;
+    o.type = "sawtooth"; o.frequency.value = 92; f.type = "lowpass"; f.frequency.value = 520;
+    g.gain.setValueAtTime(0, t);
+    for (let k = 0, step = .245; k * step < sec; k++) { g.gain.setValueAtTime(.06, t + k * step); g.gain.setValueAtTime(.015, t + k * step + step * .7); } // stepping feed
+    g.gain.setValueAtTime(0, t + sec);
+    o.connect(f).connect(g).connect(sinkFor(a)); o.start(t); o.stop(t + sec + .05);
   }
   function shutter() {
     const a = audio(); if (!a) return; soundsPlayed++;
@@ -961,8 +1053,9 @@
     for (let i = 0; i < n; i++) {
       const rect = sp.slots[i], c = clips[i]; if (!rect || !c) continue;
       const parts = state.duo ? halves(rect) : [["A", rect]];
-      parts.forEach(([sd, r]) => { if (c[sd] && c[sd].length) spots.push({ frames: c[sd], x: r.x * s, y: r.y * s, w: r.w * s, h: r.h * s }); });
+      parts.forEach(([sd, r]) => { if (c[sd] && c[sd].length) spots.push({ frames: c[sd], r, i, slot: rect }); });
     }
+    const d = design(), frame = currentFrame();
     if (!spots.length) return;
     const len = Math.max(...spots.map((p) => p.frames.length));
     const order = []; for (let k = 0; k < len; k++) order.push(k); for (let k = len - 2; k > 0; k--) order.push(k); // forward, then back
@@ -981,7 +1074,15 @@
       if (f < order.length * 2) {
         const k = order[f % order.length];
         const pics = await Promise.all(spots.map((p) => decode(p.frames[Math.min(k, p.frames.length - 1)])));
-        spots.forEach((p, j) => { if (pics[j]) { g.drawImage(shotImage(pics[j], p.w, p.h), p.x, p.y, p.w, p.h); pics[j].close && pics[j].close(); } });
+        g.save(); g.scale(s, s); // draw in print pixels so the design lines up exactly
+        spots.forEach((p, j) => {
+          if (!pics[j]) return;
+          const draw = () => g.drawImage(shotImage(pics[j], p.r.w, p.r.h), p.r.x, p.r.y, p.r.w, p.r.h);
+          if (d.shot) d.shot(g, p.r, p.i, draw, frame); else draw();
+          pics[j].close && pics[j].close();
+        });
+        if (d.over) [...new Set(spots.map((p) => p.i))].forEach((i) => d.over(g, sp.slots[i], i, frame));
+        g.restore();
       }
       track.requestFrame ? track.requestFrame() : null;
       if (f % 6 === 0) setStatus(`Making your booth video… ${Math.round((f / total) * 100)}%`);
@@ -1057,8 +1158,8 @@
   if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, video: () => sessionVideo, clips: () => clips.map((c) => c ? [c.A.length, c.B.length] : [0, 0]), drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
   window.addEventListener("pagehide", stopAll);
 
-  $("soloBtn").addEventListener("click", startSolo);
-  $("startBtn").addEventListener("click", startBooth);
+  $("soloBtn").addEventListener("click", () => enterSetup("solo"));
+  $("startBtn").addEventListener("click", () => enterSetup("host"));
   $("joinBtn").addEventListener("click", joinBooth);
   $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
   if (params.get("mode") === "photos") startPhotos();
@@ -1076,5 +1177,5 @@
   if ("serviceWorker" in navigator && window.isSecureContext && !params.get("nosw")) navigator.serviceWorker.register("sw.js").catch(() => {});
 
   buildUI(); buildFx(); render();
-  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 42px "Comfortaa"'), document.fonts.load('500 16px "Urbanist"')]).then(render, () => {});
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 42px "Comfortaa"'), document.fonts.load('500 16px "Urbanist"'), ...DESIGN_FONTS.map((f) => document.fonts.load(f).catch(() => {}))]).then(() => { render(); buildDesigns(); }, () => {});
 })();

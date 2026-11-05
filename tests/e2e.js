@@ -69,13 +69,24 @@ async function makeFaceVideo(browser) {
     p.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(name + ' console: ' + m.text()); });
     return p;
   };
+  // The start buttons open the "Choose your look" step first (no camera yet); the big button there starts it.
+  const enter = async (p, btn) => { await p.click(btn); await p.waitForSelector('#booth[data-view="setup"]', { timeout: 5000 }); await p.click('#startCamBtn'); };
+  // In the booth the settings live in the Edit look drawer.
+  const isOpen = (p) => p.evaluate(() => document.getElementById('booth').classList.contains('look-open'));
+  const openLook = async (p) => { if (!(await isOpen(p)) && await p.isVisible('#lookBtn')) { await p.click('#lookBtn'); await p.waitForTimeout(450); } };
+  const closeLook = async (p) => { if (await isOpen(p)) { await p.click('#closeLook'); await p.waitForTimeout(450); } };
+  const view = (p) => p.evaluate(() => document.getElementById('booth').dataset.view);
   const q = '?peerhost=localhost&peerport=9000&peersecure=0&peerpath=/&nosw=1&test=1&lite=0';
   const A = await mk('A', { width: 1280, height: 900 });
   await A.goto('http://localhost:8080/index.html' + q); await A.waitForTimeout(500);
   await A.screenshot({ path: OUT + '/lobby.png' });
   check('Start page hides the connection label', !(await A.isVisible('#pill')));
   await A.click('#startBtn');
-  await A.waitForSelector('#booth:not([hidden])', { timeout: 15000 });
+  await A.waitForSelector('#booth[data-view="setup"]', { timeout: 5000 });
+  check('Together: Choose your look comes first, camera stays off', !(await A.isVisible('.camera')) && await A.isVisible('#printBox') && await A.evaluate(() => !document.getElementById('vidA').srcObject));
+  await A.click('#tabBtn-design'); await A.locator('#designs .dtile', { hasText: 'Editorial' }).click(); await A.click('#tabBtn-look');
+  await A.click('#startCamBtn');
+  await A.waitForSelector('#booth[data-view="shoot"]', { timeout: 15000 });
   const code = (await A.textContent('#codeChip')).trim();
   check('Host opens a booth with a code', /^[A-Z0-9]{6}$/.test(code), code);
   await A.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
@@ -107,10 +118,14 @@ async function makeFaceVideo(browser) {
   check('Connection label shows Connected', (await A.textContent('#pillText')) === 'Connected' && await A.isVisible('#pill'));
 
   // settings sync
-  await B.locator('#seasons .chip', { hasText: 'Pasko' }).click();
+  check('Design picked before the camera syncs to the partner', (await B.locator('#designs [aria-pressed=true]').textContent()) === 'Editorial');
+  check('Settings sit behind Edit look while shooting', await A.isVisible('#lookBtn') && !(await isOpen(A)));
+  await openLook(B); await B.click('#tabBtn-design'); await B.locator('#seasonTiles .dtile', { hasText: 'Pasko' }).click(); await B.click('#tabBtn-look'); await closeLook(B);
+  await openLook(A);
+  check('Edit look opens the settings drawer', await isOpen(A) && await A.isVisible('#films'));
   await A.locator('#films .chip', { hasText: 'Silver' }).click();
   await A.click('#tabBtn-caption'); await A.fill('#caption', 'Miss you, love'); await A.click('#tabBtn-look'); await A.waitForTimeout(900);
-  check('Season syncs partner -> host', (await A.locator('#seasons [aria-pressed=true]').textContent()).includes('Pasko'));
+  check('Season syncs partner -> host', (await A.locator('#seasonTiles [aria-pressed=true]').textContent()).includes('Pasko'));
   check('Film + caption sync host -> partner', (await B.locator('#films [aria-pressed=true]').textContent()) === 'Silver' && (await B.inputValue('#caption')) === 'Miss you, love');
   await A.locator('#films .chip', { hasText: 'Natural' }).click(); await A.waitForTimeout(400);
   // duo poses: two figures, labelled so each person knows their half
@@ -124,7 +139,7 @@ async function makeFaceVideo(browser) {
   await A.locator('#poseRail').screenshot({ path: OUT + '/duo-rail-host.png' });
   await A.click('#tabBtn-poses'); await A.locator('#poseFor .chip', { hasText: 'Solo' }).click(); await A.waitForTimeout(800);
   check('Switching to Solo poses syncs to the partner', (await B.locator('#poseRail .rail-card.duo').count()) === 0 && (await B.locator('#poseRail .rail-card').count()) === 4);
-  await A.locator('#poseFor .chip', { hasText: 'Duo' }).click(); await A.click('#tabBtn-look'); await A.waitForTimeout(800);
+  await A.locator('#poseFor .chip', { hasText: 'Duo' }).click(); await A.click('#tabBtn-look'); await closeLook(A); await A.waitForTimeout(800);
   check('Back to Duo on both', (await B.locator('#poseRail .rail-card.duo').count()) === 4);
 
   // synced 4-shot session started by the partner
@@ -139,6 +154,7 @@ async function makeFaceVideo(browser) {
   await B.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 40000 });
   await A.waitForTimeout(1500);
   const filled = (p) => p.evaluate(() => document.querySelectorAll('#thumbs img').length);
+  check('Both prints drop out of the booth slot', (await view(A)) === 'result' && (await view(B)) === 'result' && await A.evaluate(() => document.getElementById('tray').contains(document.getElementById('printBox')) && document.getElementById('printBox').classList.contains('dispense')));
   check('Host has all 8 photos (4 each side)', (await filled(A)) === 8, String(await filled(A)));
   check('Partner has all 8 photos', (await filled(B)) === 8, String(await filled(B)));
   await A.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 60000 }).catch(() => {});
@@ -172,7 +188,7 @@ async function makeFaceVideo(browser) {
   // ---- Use my photos: built into the main page ----
   const S = await mk('Photos', { width: 1200, height: 900 });
   await S.goto('http://localhost:8080/index.html' + q); await S.waitForTimeout(400);
-  await S.click('#photosBtn'); await S.waitForSelector('#booth:not([hidden])', { timeout: 5000 });
+  await enter(S, '#photosBtn'); await S.waitForSelector('#booth[data-view="shoot"]', { timeout: 5000 });
   check('Use my photos opens in the booth (no camera)', (await S.textContent('#modeTag')) === 'Your photos' && await S.isVisible('#photoPick') && !(await S.isVisible('#vidA')) && (await S.locator('#photoPick .pick-slot').count()) === 4);
   const red = await S.evaluate(() => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const g = c.getContext('2d'); g.fillStyle = '#e63946'; g.fillRect(0, 0, 800, 600); return c.toDataURL('image/jpeg').split(',')[1]; });
   const [pc] = await Promise.all([S.waitForEvent('filechooser'), S.click('#shootBtn')]);
@@ -191,6 +207,11 @@ async function makeFaceVideo(browser) {
   await S.waitForTimeout(300);
   const px1 = await pixelsOf(); let changed = 0; for (let i = 0; i < Math.min(px0.length, px1.length); i += 4) if (Math.abs(px0[i] - px1[i]) + Math.abs(px0[i + 1] - px1[i + 1]) + Math.abs(px0[i + 2] - px1[i + 2]) > 60) changed++;
   check('Face stickers go on faces in your photos', (await S.textContent('#status')).includes('Stickers added to 1 face') && changed > 150, `${await S.textContent('#status')} (${changed} pixels changed)`);
+  const [pc3] = await Promise.all([S.waitForEvent('filechooser'), S.locator('#photoPick .pick-slot').nth(2).click()]);
+  await pc3.setFiles([{ name: 'c.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(red, 'base64') }]);
+  await S.waitForFunction(() => document.getElementById('booth').dataset.view === 'result', null, { timeout: 15000 }).catch(() => {});
+  check('Photos: the print drops out once every slot is filled', (await view(S)) === 'result' && (await S.textContent('#againBtn')) === 'Change photos');
+  await S.waitForTimeout(2800);
   const sdl = S.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await S.click('#saveBtn'); const sd = await sdl;
   check('Photos: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
@@ -209,13 +230,23 @@ async function makeFaceVideo(browser) {
   // ---- Just me (live camera, no partner) ----
   const J = await mk('JustMe', { width: 1280, height: 900 });
   await J.goto('http://localhost:8080/index.html' + q); await J.waitForTimeout(400);
-  await J.click('#soloBtn'); await J.waitForSelector('#booth:not([hidden])', { timeout: 10000 });
+  await J.click('#soloBtn'); await J.waitForSelector('#booth[data-view="setup"]', { timeout: 5000 });
+  check('Just me: Choose your look comes first, camera stays off', !(await J.isVisible('.camera')) && await J.isVisible('#printBox') && await J.isVisible('#startCamBtn') && await J.evaluate(() => !document.getElementById('vidA').srcObject));
+  await J.click('#tabBtn-design'); await J.waitForTimeout(400);
+  check('Design tab offers 7 styles and 6 seasons', (await J.locator('#designs .dtile').count()) === 7 && (await J.locator('#seasonTiles .dtile').count()) === 6);
+  check('Design tiles show a preview of the print', await J.evaluate(() => { const c = document.querySelector('#designs .dtile canvas'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i]) n++; return n > 1000; }));
+  const plain = await J.evaluate(() => document.getElementById('strip').toDataURL());
+  await J.locator('#designs .dtile', { hasText: 'Brutalist' }).click(); await J.waitForTimeout(300);
+  check('Picking a design restyles the print', (await J.locator('#designs [aria-pressed=true]').textContent()) === 'Brutalist' && (await J.evaluate(() => document.getElementById('strip').toDataURL())) !== plain);
+  await J.screenshot({ path: OUT + '/setup-design.png', fullPage: true });
+  await J.click('#tabBtn-look');
+  await J.click('#startCamBtn'); await J.waitForSelector('#booth[data-view="shoot"]', { timeout: 10000 });
   await J.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
   check('Just me opens the camera without a partner', (await J.textContent('#modeTag')) === 'Just me' && await J.evaluate(() => document.getElementById('stage').classList.contains('solo') && document.getElementById('vidA').videoWidth > 0));
   check('Just me hides code, share and mic', !(await J.isVisible('#codeWrap')) && !(await J.isVisible('#micBtn')) && !(await J.isVisible('#pill')));
   check('Just me: Start is ready right away', !(await J.isDisabled('#shootBtn')));
   check('Just me starts with Solo poses', (await J.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Solo') && (await J.locator('#poseRail .rail-card.duo').count()) === 0);
-  await J.click('#tabBtn-poses');
+  await openLook(J); await J.click('#tabBtn-poses');
   await J.locator('#poseFor .chip', { hasText: 'Duo' }).click();
   check('Just me can switch to Duo poses (two people in one camera)', (await J.locator('#poseRail .rail-card.duo').count()) === 4 && (await J.locator('#poseRail .who2 i').first().textContent()) === 'Left');
   await J.locator('#strip').screenshot({ path: OUT + '/duo-print-solo-camera.png' });
@@ -227,10 +258,10 @@ async function makeFaceVideo(browser) {
   check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
   await J.locator('#poseList .pose-sel').nth(2).click();
   check('Picking a pose in the list shows it beside the camera', (await J.locator('#poseRail .rail-card').nth(2).getAttribute('aria-pressed')) === 'true');
+  await J.click('#tabBtn-look'); await closeLook(J);
   await J.locator('#poseRail .rail-card').nth(3).click();
   check('Tapping a pose beside the camera picks it', (await J.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && (await J.locator('#poseList .pose-item.sel b').textContent()) === (await J.locator('#poseRail .rail-card').nth(3).locator('b').textContent()));
   await J.screenshot({ path: OUT + '/pose-rail.png' });
-  await J.click('#tabBtn-look');
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
   check('Countdown keeps the pose beside the camera (no pop-up)', (await J.locator('.pose-pop').count()) === 0 && await J.isVisible('#poseRail'));
@@ -240,6 +271,9 @@ async function makeFaceVideo(browser) {
   await J.waitForTimeout(2600);
   check('Shot 2 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(1).getAttribute('aria-pressed')) === 'true');
   await J.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 40000 });
+  check('The print drops out of the booth slot', (await view(J)) === 'result' && await J.evaluate(() => document.getElementById('tray').contains(document.getElementById('printBox')) && document.getElementById('printBox').classList.contains('dispense')));
+  await J.waitForTimeout(1200); await J.screenshot({ path: OUT + '/result-dispense.png' });
+  await J.waitForTimeout(2000);
   check('Just me takes 4 photos', (await J.evaluate(() => document.querySelectorAll('#thumbs img').length)) === 4);
   const jdl = J.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await J.click('#saveBtn'); const jd = await jdl;
@@ -271,6 +305,9 @@ async function makeFaceVideo(browser) {
     for (const t2 of [0.5, 2.0, info.d - 0.3]) { await V.evaluate((t3) => new Promise((r) => { const v = document.getElementById('v'); v.onseeked = r; v.currentTime = t3; }), t2); await V.waitForTimeout(100); await V.locator('#v').screenshot({ path: OUT + `/strip-video-${t2.toFixed(1)}.png` }); }
     await V.close();
   }
+  await J.screenshot({ path: OUT + '/result.png', fullPage: true });
+  await J.click('#againBtn');
+  check('Shoot again goes back to the camera', (await view(J)) === 'shoot' && await J.isVisible('#shootBtn'));
   await J.click('#soundBtn');
   check('Sound button turns sounds off', await J.evaluate(() => document.getElementById('soundBtn').classList.contains('off')));
   await J.click('#soundBtn');
@@ -289,7 +326,10 @@ async function makeFaceVideo(browser) {
   check('Dark choice is remembered', (await bgOf()) === 'rgb(15, 17, 16)');
   await PH.click('#themeBtn'); await PH.reload(); await PH.waitForTimeout(300);
   check('Sun button switches back to white', (await bgOf()) === 'rgb(243, 244, 242)');
-  await PH.click('#soloBtn'); await PH.waitForSelector('#booth:not([hidden])', { timeout: 10000 });
+  await PH.click('#soloBtn'); await PH.waitForSelector('#booth[data-view="setup"]', { timeout: 5000 });
+  check('Phone setup: no sideways scroll', (await PH.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  await PH.screenshot({ path: OUT + '/phone-setup.png' });
+  await PH.click('#startCamBtn'); await PH.waitForSelector('#booth[data-view="shoot"]', { timeout: 10000 });
   const lay = await PH.evaluate(() => { const s = document.getElementById('stage').getBoundingClientRect(), r = document.getElementById('poseRail').getBoundingClientRect(), c = document.querySelector('.camera').getBoundingClientRect(); return { full: s.width >= c.width - 1, under: r.top >= s.bottom - 1 && r.top - s.bottom < 30, sw: Math.round(s.width) }; });
   check('Phone: camera uses the full width', lay.full, `${lay.sw}px`);
   check('Phone: poses sit right under the camera', await PH.isVisible('#poseRail') && lay.under);
@@ -309,7 +349,7 @@ async function makeFaceVideo(browser) {
   await O.goto('http://localhost:8080/index.html').catch(() => {}); await O.waitForTimeout(800);
   check('Offline: booth still opens', await O.isVisible('#soloBtn'));
   check('Offline: Together is turned off with a note', await O.isDisabled('#startBtn') && (await O.textContent('#togetherNote')).includes("offline"));
-  await O.click('#soloBtn'); await O.waitForSelector('#booth:not([hidden])', { timeout: 10000 }).catch(() => {});
+  await enter(O, '#soloBtn').catch(() => {}); await O.waitForSelector('#booth:not([hidden])', { timeout: 10000 }).catch(() => {});
   await O.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 10000 }).catch(() => {});
   check('Offline: Just me still works', await O.isVisible('#booth') && await O.evaluate(() => document.getElementById('vidA').videoWidth > 0));
   await O.goto('http://localhost:8080/solo/').catch(() => {}); await O.waitForTimeout(600);
@@ -334,7 +374,7 @@ async function makeFaceVideo(browser) {
     return { n, x: n ? sx / n : 0 };
   }, id);
   const F = await mkF('Faces');
-  await F.goto('http://localhost:8080/index.html' + q); await F.click('#soloBtn');
+  await F.goto('http://localhost:8080/index.html' + q); await enter(F, '#soloBtn');
   await F.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 15000 });
   check('Face stickers row shows 19 choices', (await F.locator('#fxBar .fx').count()) === 19);
   check('Sticker buttons show the artwork', (await F.locator('#fxBar .fx img.e').count()) === 15);
@@ -361,7 +401,7 @@ async function makeFaceVideo(browser) {
   check('Sticker artwork loads (Fluent + Noto)', loaded >= 20, `${loaded} files`);
   check('Every sticker draws without errors', !errs.some((x) => x.startsWith('Faces')));
   // lighter mode for slow phones still finds the face and draws stickers
-  const LT = await mkF('Lite'); await LT.goto('http://localhost:8080/index.html' + q.replace('lite=0', 'lite=1')); await LT.click('#soloBtn');
+  const LT = await mkF('Lite'); await LT.goto('http://localhost:8080/index.html' + q.replace('lite=0', 'lite=1')); await enter(LT, '#soloBtn');
   await LT.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 15000 });
   await LT.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
   await LT.waitForFunction(() => +(document.getElementById('stage').dataset.faces || 0) > 0, null, { timeout: 30000 }).catch(() => {});
@@ -372,14 +412,14 @@ async function makeFaceVideo(browser) {
   await F.screenshot({ path: OUT + '/stickers-santa.png' });
   await F.locator('#fxBar .fx', { hasText: 'Puppy' }).click(); await F.waitForTimeout(600);
   await F.screenshot({ path: OUT + '/stickers-puppy.png' });
-  await F.locator('#layouts .chip', { hasText: 'Instant' }).click();
+  await openLook(F); await F.locator('#layouts .chip', { hasText: 'Instant' }).click(); await closeLook(F);
   await F.click('#shootBtn'); await F.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 20000 });
   const printEars = await F.evaluate(() => { const c = document.getElementById('strip'), d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 122) < 30 && Math.abs(d[i + 1] - 74) < 30 && Math.abs(d[i + 2] - 36) < 30) n++; return n; });
   check('The photo on the print has the stickers', printEars > 300, `${printEars} brown pixels`);
-  await F.locator('#strip').screenshot({ path: OUT + '/stickers-print.png' });
+  await F.waitForTimeout(3200); await F.locator('#strip').screenshot({ path: OUT + '/stickers-print.png' });
   // partner sees your stickers in Together
   const H = await mkF('FaceHost'); await H.goto('http://localhost:8080/index.html' + q);
-  await H.click('#startBtn'); await H.waitForSelector('#booth:not([hidden])', { timeout: 15000 });
+  await enter(H, '#startBtn'); await H.waitForSelector('#booth[data-view="shoot"]', { timeout: 15000 });
   await H.locator('#fxBar .fx', { hasText: 'Puppy' }).click();
   const fcode = (await H.textContent('#codeChip')).trim();
   const G = await mkF('FaceGuest'); await G.goto('http://localhost:8080/index.html' + q + '&join=' + fcode); await G.click('#joinBtn');
