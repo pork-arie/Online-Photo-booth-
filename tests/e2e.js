@@ -141,11 +141,13 @@ async function makeFaceVideo(browser) {
   const filled = (p) => p.evaluate(() => document.querySelectorAll('#thumbs img').length);
   check('Host has all 8 photos (4 each side)', (await filled(A)) === 8, String(await filled(A)));
   check('Partner has all 8 photos', (await filled(B)) === 8, String(await filled(B)));
-  await A.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 20000 }).catch(() => {});
-  await B.waitForFunction(() => !document.getElementById('videoBtn').disabled, null, { timeout: 20000 }).catch(() => {});
+  await A.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 60000 }).catch(() => {});
+  await B.waitForFunction(() => !document.getElementById('videoBtn').disabled, null, { timeout: 60000 }).catch(() => {});
   check('Both partners get the booth video of the session', !(await A.isDisabled('#videoBtn')) && !(await B.isDisabled('#videoBtn')));
   const tv = await A.evaluate(async () => { const b = window.__fbTest.video(); return b ? { size: b.size, type: b.type } : null; });
-  check('Together video is recorded (both cameras side by side)', !!tv && tv.size > 100000, tv ? `${Math.round(tv.size / 1024)} KB ${tv.type}` : 'none');
+  const cl = await A.evaluate(() => window.__fbTest.clips());
+  check('Every shot has a pose clip of both people', cl.length === 4 && cl.every(([x, y]) => x >= 15 && y >= 15), JSON.stringify(cl));
+  check('Together video is made (both people in every frame)', !!tv && tv.size > 50000, tv ? `${Math.round(tv.size / 1024)} KB ${tv.type}` : 'none');
   check('Print saves as PNG', (await A.evaluate(() => new Promise((r) => document.getElementById('strip').toBlob((x) => r(x ? x.size : 0))))) > 0);
   await A.screenshot({ path: OUT + '/booth-host.png', fullPage: true });
   await B.screenshot({ path: OUT + '/booth-partner.png', fullPage: true });
@@ -231,7 +233,6 @@ async function makeFaceVideo(browser) {
   await J.click('#tabBtn-look');
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
-  const sawRec = await J.isVisible('#recDot');
   check('Countdown keeps the pose beside the camera (no pop-up)', (await J.locator('.pose-pop').count()) === 0 && await J.isVisible('#poseRail'));
   check('Shot 1 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(0).getAttribute('aria-pressed')) === 'true');
   await J.waitForTimeout(3000);
@@ -245,24 +246,29 @@ async function makeFaceVideo(browser) {
   check('Just me saves the print', !!jd, jd ? jd.suggestedFilename() : '');
   check('Countdown beeps and shutter sounds play', (await J.evaluate(() => window.__fbTest.sounds())) >= 16, String(await J.evaluate(() => window.__fbTest.sounds())));
   check('The print develops like instant film', await J.evaluate(() => document.getElementById('strip').classList.contains('develop')));
-  // Save video: the replay of the session itself (camera, countdown, flash, then the print)
-  check('The booth records the session (REC shows while shooting)', sawRec, '');
-  await J.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 20000 }).catch(() => {});
-  check('Booth video is ready after the session', !(await J.isDisabled('#videoBtn')) && (await J.isHidden('#recDot')), await J.textContent('#status'));
+  // Save video: a moving version of the strip (each photo plays the pose clip), no REC or countdown
+  check('No REC badge or recording overlay', (await J.locator('#recDot').count()) === 0);
+  await J.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 60000 }).catch(() => {});
+  check('Booth video is ready after the session', !(await J.isDisabled('#videoBtn')), await J.textContent('#status'));
   const vdl = J.waitForEvent('download', { timeout: 10000 }).catch(() => null);
   await J.click('#videoBtn'); const vd = await vdl; let vidInfo = '', vidOk = false, vidFile = '';
-  if (vd) { vidFile = OUT + '/session' + path.extname(vd.suggestedFilename()); fs.copyFileSync(await vd.path(), vidFile); const sz = fs.statSync(vidFile).size; vidOk = sz > 100000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(sz / 1024)} KB`; }
-  check('Save video saves the replay of your session', vidOk, vidInfo);
+  if (vd) { vidFile = OUT + '/strip-video' + path.extname(vd.suggestedFilename()); fs.copyFileSync(await vd.path(), vidFile); const sz = fs.statSync(vidFile).size; vidOk = sz > 50000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(sz / 1024)} KB`; }
+  check('Save video saves the moving strip', vidOk, vidInfo);
   if (vidFile) {
     const V = await J.context().newPage();
+    await V.setContent('<video id=v muted style="width:300px"></video>');
     const info = await V.evaluate(async (b64) => {
-      const v = document.createElement('video'); v.muted = true; document.body.appendChild(v);
-      v.src = URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))], { type: b64.startsWith('AAAA') ? 'video/mp4' : 'video/webm' }));
-      await new Promise((r) => { v.onloadedmetadata = r; v.onerror = r; });
+      const v = document.getElementById('v');
+      v.src = URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))]));
+      await new Promise((r) => { v.onloadeddata = r; v.onerror = r; });
       if (!isFinite(v.duration)) { v.currentTime = 1e6; await new Promise((r) => { v.ontimeupdate = r; setTimeout(r, 2000); }); }
-      return { d: v.duration, w: v.videoWidth, h: v.videoHeight };
+      const shot = async (t) => { await new Promise((r) => { v.onseeked = r; v.currentTime = t; }); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; const g = c.getContext('2d'); g.drawImage(v, 0, 0); return g.getImageData(0, 0, c.width, Math.round(c.height * .22)).data; };
+      const a = await shot(0.5), b = await shot(1.6); let diff = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 60) diff++;
+      return { d: v.duration, w: v.videoWidth, h: v.videoHeight, diff };
     }, fs.readFileSync(vidFile).toString('base64'));
-    check('The video lasts as long as the session (4 shots + the print)', info.d >= 18, `${info.d.toFixed(1)} s, ${info.w}x${info.h}`);
+    check('The video is the strip (tall like the print)', info.h > info.w * 1.5, `${info.w}x${info.h}, ${info.d.toFixed(1)} s`);
+    check('The photos in the strip move (pose clips play)', info.diff > 500, `${info.diff} pixels changed in shot 1`);
+    for (const t2 of [0.5, 2.0, info.d - 0.3]) { await V.evaluate((t3) => new Promise((r) => { const v = document.getElementById('v'); v.onseeked = r; v.currentTime = t3; }), t2); await V.waitForTimeout(100); await V.locator('#v').screenshot({ path: OUT + `/strip-video-${t2.toFixed(1)}.png` }); }
     await V.close();
   }
   await J.click('#soundBtn');

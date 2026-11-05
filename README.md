@@ -20,7 +20,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
-5. **Save the print**, or **Save video** for the replay of your session (see below). **Share print** sends it straight to apps on your phone.
+5. **Save the print**, or **Save video** for the moving strip (see below). **Share print** sends it straight to apps on your phone.
 
 If the connection drops for a moment, the booth reconnects by itself.
 
@@ -53,7 +53,7 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 When your shots are done, the print slides out and develops like an instant photo, with a burst of confetti. Then:
 
 - **Save print:** the full strip as a PNG picture.
-- **Save video:** the replay of your session, like the videos real photo booths give you. While you shoot, the booth records what the camera sees (stickers included), with the countdown, the flash on each shot, the pose for that shot and the booth sounds. It ends with your print sliding out. In Together, the video shows both cameras side by side, includes your voice, and each of you gets your own copy. A red **REC** badge shows on the camera while it records. The video is made on your phone (MP4 on most phones, WebM in some browsers) and isn't uploaded anywhere.
+- **Save video:** a moving version of your strip, like the "live strips" from real photo booths. During each countdown the booth quietly keeps a short clip of you posing (and your partner in Together). Afterwards it makes a video of your print where every photo plays its clip forward and back, with your frame, film look, poses and caption, and ends on the finished strip. There's no countdown or REC badge in the video. It's made on your phone (MP4 on most phones, WebM in some browsers) and isn't uploaded anywhere.
 
 On iPhone and iPad, saving opens the share sheet. Tap **Save Image** or **Save Video** to put it in Photos.
 
@@ -156,12 +156,12 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that the invite link fills in the code
 - that settings sync both ways
 - that both screens get the same pose and countdown
-- that all 8 photos arrive (4 from each person), and both partners get the session video
+- that all 8 photos arrive (4 from each person), and both partners get the moving-strip video with clips of both people
 - that saving downloads the print
 - that a dropped connection reconnects by itself and the video comes back
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, saving the print, and the session video (recorded while shooting, as long as the session)
+- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, saving the print, and the moving-strip video (tall like the print, with the photos moving)
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces
