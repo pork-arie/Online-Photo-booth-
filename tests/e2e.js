@@ -297,7 +297,9 @@ async function makeFaceVideo(browser) {
       await new Promise((r) => { v.onloadeddata = r; v.onerror = r; });
       if (!isFinite(v.duration)) { v.currentTime = 1e6; await new Promise((r) => { v.ontimeupdate = r; setTimeout(r, 2000); }); }
       const shot = async (t) => { await new Promise((r) => { v.onseeked = r; v.currentTime = t; }); const c = document.createElement('canvas'); c.width = v.videoWidth; c.height = v.videoHeight; const g = c.getContext('2d'); g.drawImage(v, 0, 0); return g.getImageData(0, 0, c.width, Math.round(c.height * .22)).data; };
-      const a = await shot(0.5), b = await shot(1.6); let diff = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 60) diff++;
+      // compare a few moments of the clip loop (on a slow computer two moments can land on similar frames)
+      const a = await shot(0.4); let diff = 0;
+      for (const t of [0.9, 1.4, 1.9, 2.4]) { const b = await shot(t); let n = 0; for (let i = 0; i < a.length; i += 4) if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 60) n++; diff = Math.max(diff, n); }
       return { d: v.duration, w: v.videoWidth, h: v.videoHeight, diff };
     }, fs.readFileSync(vidFile).toString('base64'));
     check('The video is the strip (tall like the print)', info.h > info.w * 1.5, `${info.w}x${info.h}, ${info.d.toFixed(1)} s`);
