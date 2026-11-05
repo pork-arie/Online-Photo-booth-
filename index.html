@@ -128,7 +128,7 @@ h1.display em { font-style: normal; color: var(--accent); }
 <body>
 <nav class="nav"><div class="wrap nav-in">
   <a class="mark" href="./">Flashbulb <i>live</i><span class="dot" aria-hidden="true"></span></a>
-  <span class="pill" id="pill"><i></i><span id="pillText">Not connected</span></span>
+  <span class="pill" id="pill" hidden title="Connection with your partner"><i></i><span id="pillText">Waiting for your partner</span></span>
 </div></nav>
 
 <main>
@@ -593,7 +593,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const params = new URLSearchParams(location.search);
   function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
-  function setPill(mode, text) { const p = $("pill"); p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
+  function setPill(mode, text) { const p = $("pill"); p.hidden = false; p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
   function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
   picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length);
 
@@ -675,16 +675,29 @@ h1.display em { font-style: normal; color: var(--accent); }
     $("micBtn").classList.toggle("off", !micOn); $("micBtn").setAttribute("aria-label", micOn ? "Mute microphone" : "Unmute microphone");
     setStatus(micOn ? "Microphone on." : "Microphone muted.");
   });
+  let flipping = false;
+  const getCam = (mode, exact) => navigator.mediaDevices.getUserMedia({ video: { facingMode: exact ? { exact: mode } : mode, width: { ideal: 1280 }, height: { ideal: 960 } } });
   $("flipBtn").addEventListener("click", async () => {
-    facing = facing === "user" ? "environment" : "user";
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } } });
-      const nt = s.getVideoTracks()[0], old = localStream.getVideoTracks()[0];
-      localStream.removeTrack(old); old.stop(); localStream.addTrack(nt);
-      if (call && call.peerConnection) { const snd = call.peerConnection.getSenders().find((x) => x.track && x.track.kind === "video"); if (snd) snd.replaceTrack(nt); }
-      localVideo().style.transform = facing === "user" ? "" : "none";
-      state.mirror = facing === "user"; render();
-    } catch (e) { facing = facing === "user" ? "environment" : "user"; setStatus("Couldn't switch cameras on this device.", true); }
+    if (flipping || !localStream) return;
+    flipping = true; $("flipBtn").disabled = true;
+    const want = facing === "user" ? "environment" : "user";
+    const old = localStream.getVideoTracks()[0];
+    if (old) old.stop(); // most phones can only have one camera open at a time
+    let s = null, switched = false;
+    try { s = await getCam(want, true); switched = true; } catch {
+      try { s = await getCam(want, false); switched = true; } catch {}
+    }
+    if (!s) { try { s = await getCam(facing, false); } catch {} } // could not switch: reopen the camera we had
+    if (!s) { setStatus("Your camera stopped. Tap Leave and start again.", true); flipping = false; $("flipBtn").disabled = false; return; }
+    if (switched) facing = want;
+    const nt = s.getVideoTracks()[0];
+    localStream = new MediaStream([nt, ...localStream.getAudioTracks()]);
+    const v = localVideo(); v.srcObject = localStream; v.play().catch(() => {});
+    v.style.transform = facing === "user" ? "" : "none";
+    if (call && call.peerConnection) { const snd = call.peerConnection.getSenders().find((x) => x.track && x.track.kind === "video"); if (snd) snd.replaceTrack(nt).catch(() => {}); }
+    send({ t: "facing", user: facing === "user" });
+    setStatus(!switched ? "Couldn't open the other camera on this device." : facing === "user" ? "Front camera on." : "Back camera on.", !switched);
+    flipping = false; $("flipBtn").disabled = false;
   });
 
   /* ---------- connection (PeerJS) ---------- */
@@ -713,7 +726,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     mySide = "A"; code = genCode();
     const tryOpen = (attempt) => {
       peer = new Peer(PREFIX + code, peerOptions());
-      peer.on("open", () => { enterBooth(); setPill("wait", "Waiting for partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
+      peer.on("open", () => { enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
       peer.on("error", (e) => {
         if (e.type === "unavailable-id" && attempt < 3) { peer.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
         if (e.type === "network" || e.type === "server-error" || e.type === "socket-error") { setPill("", "Offline"); (($("booth").hidden) ? lobbyNote : setStatus)("Lost the connection to the booth service. Check your internet.", true); busyBtns(false); return; }
@@ -766,6 +779,7 @@ h1.display em { font-style: normal; color: var(--accent); }
       setPill("on", "Connected"); $("shootBtn").disabled = false;
       setStatus(mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
       if (mySide === "A") send({ t: "settings", s: settingsPayload() });
+      send({ t: "facing", user: facing === "user" });
     });
     c.on("data", onData);
     c.on("close", () => {
@@ -797,9 +811,12 @@ h1.display em { font-style: normal; color: var(--accent); }
   }
 
   /* ---------- shots ---------- */
-  function frameFrom(video) {
+  let partnerFront = true;
+  function frameFrom(video, backCamera) {
     const w = video.videoWidth, h = video.videoHeight; if (!w || !h) return null;
-    const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(video, 0, 0, w, h);
+    const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d");
+    if (backCamera) { g.translate(w, 0); g.scale(-1, 1); } // the print mirrors photos like a selfie; undo that for the back camera
+    g.drawImage(video, 0, 0, w, h);
     return c;
   }
   function toShot(c) {
@@ -823,6 +840,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     else if (m.t === "shot" && Number.isInteger(m.i) && m.i >= 0 && m.i < 4) {
       const p = await decode(m.img); if (!p) return;
       sideArr(otherSide())[m.i] = p; render(); renderThumbs();
+    } else if (m.t === "facing") {
+      partnerFront = m.user !== false; remoteVideo().style.transform = partnerFront ? "" : "none";
     } else if (m.t === "full") { setStatus("That booth already has two people.", true); }
   }
   function overlay(html) { $("overlay").innerHTML = html; }
@@ -846,12 +865,12 @@ h1.display em { font-style: normal; color: var(--accent); }
       for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); await sleep(800); }
       overlay("");
       const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
-      const mine = frameFrom(localVideo());
+      const mine = frameFrom(localVideo(), facing !== "user");
       if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
       render(); renderThumbs();
       const idx = i;
       setTimeout(() => { // backup: if the partner's photo never arrives, use a frame from their live video
-        if (!sideArr(otherSide())[idx] && remoteVideo().srcObject) { const c = frameFrom(remoteVideo()); if (c) { sideArr(otherSide())[idx] = toShot(c); render(); renderThumbs(); } }
+        if (!sideArr(otherSide())[idx] && remoteVideo().srcObject) { const c = frameFrom(remoteVideo(), !partnerFront); if (c) { sideArr(otherSide())[idx] = toShot(c); render(); renderThumbs(); } }
       }, 6000);
       await sleep(900);
     }

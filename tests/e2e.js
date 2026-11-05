@@ -36,6 +36,7 @@ const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
   const A = await mk('A', { width: 1280, height: 900 });
   await A.goto('http://localhost:8080/index.html' + q); await A.waitForTimeout(500);
   await A.screenshot({ path: OUT + '/lobby.png' });
+  check('Start page hides the connection label', !(await A.isVisible('#pill')));
   await A.click('#startBtn');
   await A.waitForSelector('#booth:not([hidden])', { timeout: 15000 });
   const code = (await A.textContent('#codeChip')).trim();
@@ -53,6 +54,19 @@ const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
   check('Partner sees host live video', await B.evaluate(() => document.getElementById('vidA').videoWidth > 0));
   check('Both show Connected', (await A.textContent('#pillText')) === 'Connected' && (await B.textContent('#pillText')) === 'Connected');
   check('Partner hears host (audio track present)', await B.evaluate(() => { const s = document.getElementById('vidA').srcObject; return !!s && s.getAudioTracks().length > 0; }));
+
+  // camera switch: back, then front again
+  await A.click('#flipBtn'); await A.waitForTimeout(1200);
+  const st1 = await A.textContent('#status');
+  check('Switch to back camera', st1.includes('Back camera') && await A.evaluate(() => document.getElementById('vidA').videoWidth > 0), st1);
+  check("Partner sees host's back camera unmirrored", (await B.evaluate(() => document.getElementById('vidA').style.transform)) === 'none');
+  await A.click('#flipBtn'); await A.waitForTimeout(1200);
+  const st2 = await A.textContent('#status');
+  check('Switch back to front camera', st2.includes('Front camera') && await A.evaluate(() => document.getElementById('vidA').videoWidth > 0), st2);
+  await A.click('#flipBtn'); await A.waitForTimeout(1200); await A.click('#flipBtn'); await A.waitForTimeout(1200);
+  check('Switching again and again keeps working', (await A.textContent('#status')).includes('Front camera'));
+  check('Partner still gets live video after switching', await B.evaluate(() => { const v = document.getElementById('vidA'); return v.videoWidth > 0 && !v.paused; }));
+  check('Connection label shows Connected', (await A.textContent('#pillText')) === 'Connected' && await A.isVisible('#pill'));
 
   // settings sync
   await B.locator('#looks .chip', { hasText: 'Pasko' }).click();
