@@ -170,18 +170,46 @@ async function makeFaceVideo(browser) {
   await J.click('#tabBtn-poses');
   check('Poses tab lists the upcoming poses', (await J.locator('#poseList .pose-item').count()) === 4);
   const firstPose = await J.locator('#poseList .pose-item b').first().textContent();
-  await J.locator('#poseList .pose-item').first().click();
-  check('Tapping a pose swaps it', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
+  await J.locator('#poseList .pose-swap').first().click();
+  check('↻ swaps a pose', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
+  check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
+  await J.locator('#poseList .pose-sel').nth(2).click();
+  check('Picking a pose in the list shows it beside the camera', (await J.locator('#poseRail .rail-card').nth(2).getAttribute('aria-pressed')) === 'true');
+  await J.locator('#poseRail .rail-card').nth(3).click();
+  check('Tapping a pose beside the camera picks it', (await J.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && (await J.locator('#poseList .pose-item.sel b').textContent()) === (await J.locator('#poseRail .rail-card').nth(3).locator('b').textContent()));
+  await J.screenshot({ path: OUT + '/pose-rail.png' });
   await J.click('#tabBtn-look');
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
   check('Just me shows the pose card', await J.isVisible('.pose-pop'));
+  check('Shot 1 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(0).getAttribute('aria-pressed')) === 'true');
+  await J.waitForTimeout(5600);
+  check('Shot 2 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(1).getAttribute('aria-pressed')) === 'true');
   await J.waitForFunction(() => !document.getElementById('shootBtn').disabled, null, { timeout: 40000 });
   check('Just me takes 4 photos', (await J.evaluate(() => document.querySelectorAll('#thumbs img').length)) === 4);
   const jdl = J.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await J.click('#saveBtn'); const jd = await jdl;
   check('Just me saves the print', !!jd, jd ? jd.suggestedFilename() : '');
   await J.screenshot({ path: OUT + '/just-me.png', fullPage: true });
+
+  // ---- phone: picked pose floats on the camera; white even when the phone is in dark mode ----
+  const PH = await mk('Phone', { width: 390, height: 844 });
+  await PH.emulateMedia({ colorScheme: 'dark' });
+  await PH.goto('http://localhost:8080/index.html' + q); await PH.waitForTimeout(300);
+  const bgOf = () => PH.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  check('White by default, even in phone dark mode', (await bgOf()) === 'rgb(243, 244, 242)', await bgOf());
+  await PH.click('#themeBtn');
+  check('Moon button switches to dark', (await bgOf()) === 'rgb(15, 17, 16)');
+  await PH.reload(); await PH.waitForTimeout(300);
+  check('Dark choice is remembered', (await bgOf()) === 'rgb(15, 17, 16)');
+  await PH.click('#themeBtn'); await PH.reload(); await PH.waitForTimeout(300);
+  check('Sun button switches back to white', (await bgOf()) === 'rgb(243, 244, 242)');
+  await PH.click('#soloBtn'); await PH.waitForSelector('#booth:not([hidden])', { timeout: 10000 });
+  check('Phone: picked pose floats on the camera', await PH.isVisible('#posePeek') && !(await PH.isVisible('#poseRail')));
+  const peek1 = await PH.textContent('#posePeek b'); await PH.click('#posePeek');
+  check('Phone: tapping it shows the next pose', (await PH.textContent('#posePeek small')).startsWith('Shot 2') && (await PH.textContent('#posePeek b')) !== peek1);
+  check('Phone: no sideways scroll in the booth', (await PH.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  await PH.screenshot({ path: OUT + '/phone-booth-light.png' });
 
   // ---- offline: after one visit the booth opens with no internet ----
   const O = await mk('Offline', { width: 1280, height: 900 }, true);

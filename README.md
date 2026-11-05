@@ -51,7 +51,9 @@ Pick a sticker under the camera and it follows your face as you move, like the f
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
-- **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses and swapping them) and Caption
+- **Poses beside the camera:** the poses for your shots sit next to the camera, so you can see what's coming. Tap one to pick it. During shooting, the current shot's pose lights up. On phones, the picked pose floats in the corner of the camera, and tapping it shows the next one.
+- **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
+- **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption
 - **Synced settings in Together:** whatever either person changes appears on both screens
 
 ## Put it online (GitHub Pages)
