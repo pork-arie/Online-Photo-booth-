@@ -208,6 +208,27 @@ h1.display em { font-style: normal; color: var(--accent); }
 #strip.strip { width: min(100%, 300px); } #strip.polaroid { width: min(100%, 420px); }
 #strip.strip.wp { width: min(100%, 340px); }
 .print-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+#soundBtn .mute, #soundBtn.off .on { display: none; } #soundBtn.off .mute { display: block; } #soundBtn.off { color: var(--muted); }
+.confetti { position: fixed; inset: 0; pointer-events: none; z-index: 60; }
+.print-box { overflow: hidden; }
+#strip.develop { animation: eject .7s cubic-bezier(.2,.9,.3,1.15) both, develop-film 2.6s ease-out both; }
+@keyframes eject { from { transform: translateY(-38%); } to { transform: none; } }
+@keyframes develop-film { 0% { filter: brightness(1.9) saturate(0) contrast(.6) blur(1.5px); } 55% { filter: brightness(1.15) saturate(.6) contrast(.9) blur(0); } 100% { filter: none; } }
+.thumbs img.pop { animation: thumb-pop .5s cubic-bezier(.2,.9,.3,1.4) both; }
+@keyframes thumb-pop { from { transform: scaleX(-1) scale(.4); opacity: 0; } to { transform: scaleX(-1); opacity: 1; } }
+.mode { animation: rise-in .6s cubic-bezier(.2,.8,.2,1) both; }
+.modes .mode:nth-child(2) { animation-delay: .08s; } .modes .mode:nth-child(3) { animation-delay: .16s; }
+.intro { animation: rise-in .6s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+#booth:not([hidden]) { animation: fade-in .35s ease-out both; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.fx { transition: transform .15s ease, border-color .15s, box-shadow .15s; }
+.fx:active { transform: scale(.94); }
+.fx[aria-pressed="true"] img.e, .fx[aria-pressed="true"] .e { animation: wiggle .5s ease; }
+@keyframes wiggle { 30% { transform: rotate(-10deg) scale(1.12); } 60% { transform: rotate(8deg) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) {
+  #strip.develop, .thumbs img.pop, .mode, .intro, #booth:not([hidden]), .fx[aria-pressed="true"] img.e, .fx[aria-pressed="true"] .e { animation: none; }
+}
 
 @media (max-width: 900px) {
   .lobby { padding-top: 28px; gap: 24px; }
@@ -304,6 +325,10 @@ h1.display em { font-style: normal; color: var(--accent); }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
           <span id="shootLabel">Start 4 shots</span>
         </button>
+        <button class="btn round" id="soundBtn" type="button" aria-label="Turn sounds off" title="Sounds">
+          <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+          <svg class="mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
+        </button>
         <button class="btn round" id="flipBtn" type="button" aria-label="Switch camera" title="Switch camera">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5-2.2M15 13a3 3 0 0 1-5 2.2M14 9v2h-2M10 17v-2h2"/></svg>
         </button>
@@ -351,6 +376,8 @@ h1.display em { font-style: normal; color: var(--accent); }
         <canvas id="strip" class="strip" role="img" aria-label="Your print"></canvas>
         <div class="print-actions">
           <button class="btn solid" id="saveBtn" type="button">Save print</button>
+          <button class="btn" id="gifBtn" type="button">Save GIF</button>
+          <button class="btn" id="reelBtn" type="button">Save video</button>
           <button class="btn" id="shareImgBtn" type="button" hidden>Share print</button>
         </div>
       </div>
@@ -454,16 +481,17 @@ h1.display em { font-style: normal; color: var(--accent); }
     g.save(); if (state.mirror) { g.translate(w, 0); g.scale(-1, 1); }
     g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh); g.restore();
   }
-  function drawShot(src, rect) {
-    const off = document.createElement("canvas"); off.width = Math.round(rect.w); off.height = Math.round(rect.h);
+  function shotImage(src, w, h) {
+    const off = document.createElement("canvas"); off.width = Math.round(w); off.height = Math.round(h);
     const g = off.getContext("2d");
     cover(g, src, off.width, off.height);
     applyFilter(g, off.width, off.height, state.filter);
     const v = g.createRadialGradient(off.width / 2, off.height / 2, off.height * .4, off.width / 2, off.height / 2, off.height * .9);
     v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.16)");
     g.fillStyle = v; g.fillRect(0, 0, off.width, off.height);
-    ctx.drawImage(off, rect.x, rect.y);
+    return off;
   }
+  function drawShot(src, rect) { ctx.drawImage(shotImage(src, rect.w, rect.h), rect.x, rect.y); }
   function drawEmpty(rect, i, frame, side) {
     ctx.save();
     if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .92; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); }
@@ -634,7 +662,7 @@ h1.display em { font-style: normal; color: var(--accent); }
 
   function render() {
     const sp = spec(state.layout), frame = currentFrame();
-    canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "");
+    canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "") + (canvas.classList.contains("develop") ? " develop" : "");
     paintBackground(ctx, sp.W, sp.H, frame, sp.W / 600);
     let anySample = false;
     sp.slots.forEach((rect, i) => {
@@ -908,7 +936,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     box.classList.toggle("solo", solo);
     for (let i = 0; i < n; i++) {
       const d = document.createElement("div");
-      (solo ? ["A"] : ["A", "B"]).forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; d.appendChild(im); } else d.appendChild(document.createElement("span")); });
+      (solo ? ["A"] : ["A", "B"]).forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; if (!p.shown) { im.className = "pop"; p.shown = true; } d.appendChild(im); } else d.appendChild(document.createElement("span")); });
       box.appendChild(d);
     }
   }
@@ -1503,9 +1531,9 @@ h1.display em { font-style: normal; color: var(--accent); }
       if (poseMode !== "off") { const pi = poseInfo(i); setStatus(`Shot ${i + 1} of ${total}: ${pi.name}. ${pi.tip || "Get ready!"}`); }
       else setStatus(`Shot ${i + 1} of ${total}: get ready.`);
       await sleep(1800);
-      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); await sleep(800); }
+      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); beep(k === 1 ? 990 : 660, k === 1 ? .18 : .12); await sleep(800); }
       overlay("");
-      const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go");
+      const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); shutter();
       const mine = frameFrom(pipelineOn ? fxCanvas : localVideo(), facing !== "user");
       if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
       render(); renderThumbs();
@@ -1516,10 +1544,169 @@ h1.display em { font-style: normal; color: var(--accent); }
       await sleep(900);
     }
     busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); $("poseRail").classList.remove("live"); buildUI();
-    setStatus("Done! Your print is ready. Save it, or tap Start to shoot again.");
-    $("strip").scrollIntoView({ behavior: "smooth", block: "nearest" });
+    setStatus("Done! Your print is ready. Save it as a picture, GIF or video, or tap Start to shoot again.");
+    const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop"); // the print develops like instant film
+    confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120);
+    st.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "nearest" });
   }
   $("shootBtn").addEventListener("click", () => runSession(true));
+
+  /* ---------- Sounds: countdown beeps and a shutter click (Web Audio, no files) ---------- */
+  let soundOn = true, actx = null, soundsPlayed = 0;
+  try { soundOn = localStorage.getItem("fb-sound") !== "0"; } catch {}
+  function audio() {
+    if (!soundOn) return null;
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); return actx; } catch { return null; }
+  }
+  document.addEventListener("pointerdown", () => { if (soundOn) audio(); }, { once: true }); // phones only allow sound after a tap
+  function beep(freq = 880, dur = .12, vol = .18) {
+    const a = audio(); if (!a) return; soundsPlayed++;
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02);
+  }
+  function shutter() {
+    const a = audio(); if (!a) return; soundsPlayed++;
+    const len = Math.floor(a.sampleRate * .14), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = buf; f.type = "highpass"; f.frequency.value = 1400; g.gain.value = .55;
+    src.connect(f).connect(g).connect(a.destination); src.start();
+  }
+  function renderSoundBtn() {
+    const b = $("soundBtn"); b.classList.toggle("off", !soundOn);
+    b.setAttribute("aria-label", soundOn ? "Turn sounds off" : "Turn sounds on"); b.setAttribute("aria-pressed", String(soundOn));
+  }
+  $("soundBtn").addEventListener("click", () => {
+    soundOn = !soundOn; try { localStorage.setItem("fb-sound", soundOn ? "1" : "0"); } catch {}
+    renderSoundBtn(); if (soundOn) beep(990, .1); setStatus(soundOn ? "Sounds on." : "Sounds off.");
+  });
+  renderSoundBtn();
+
+  /* ---------- Motion: confetti when the print is ready ---------- */
+  const calm = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function confettiBurst() {
+    if (calm()) return;
+    const c = document.createElement("canvas"); c.className = "confetti"; c.width = innerWidth; c.height = innerHeight; document.body.appendChild(c);
+    const g = c.getContext("2d"), cols = ["#1F5C4A", "#7CC8AC", "#F2B33D", "#E8536F", "#3A86FF", "#8338EC"], start = performance.now();
+    const bits = Array.from({ length: 140 }, (_, k) => ({ x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .55, vx: (Math.random() - .5) * 14, vy: -Math.random() * 16 - 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, c: cols[k % cols.length] }));
+    (function tick(now) {
+      const t = (now - start) / 1000; g.clearRect(0, 0, c.width, c.height);
+      bits.forEach((b) => { b.vy += .45; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.r += b.vr; g.save(); g.globalAlpha = Math.max(0, 1 - t / 2.6); g.translate(b.x, b.y); g.rotate(b.r); g.fillStyle = b.c; g.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); g.restore(); });
+      if (t < 2.6) requestAnimationFrame(tick); else c.remove();
+    })(start);
+  }
+
+  /* ---------- Shot cards: one framed picture per shot, used by the GIF and the video ---------- */
+  function captionOn(g, text, cx, y, size, frame) {
+    if (!text) return;
+    g.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+    const tw = g.measureText(text).width;
+    if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha = .9; g.fillRect(cx - tw / 2 - size * .3, y - size * .5, tw + size * .6, size * .62); g.globalAlpha = 1; }
+    g.fillStyle = frame.ink; g.fillText(text, cx, y);
+  }
+  function shotsTaken() { const n = LAYOUTS[state.layout].n, out = []; for (let i = 0; i < n; i++) if (sideArr("A")[i] || sideArr("B")[i]) out.push(i); return out; }
+  function shotCard(i, W) {
+    const frame = currentFrame(), m = Math.round(W * .04), pw = W - m * 2, ph = Math.round(pw * 3 / 4), foot = Math.round(W * .13), H = m + ph + foot;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+    paintBackground(g, W, H, frame, W / 600);
+    const sides = state.duo ? ["A", "B"] : ["A"], gap = state.duo ? Math.round(W * .012) : 0, w = (pw - gap * (sides.length - 1)) / sides.length;
+    sides.forEach((sd, k) => {
+      const p = sideArr(sd)[i], x = m + k * (w + gap);
+      if (p) g.drawImage(shotImage(p.canvas, w, ph), x, m);
+      else { g.fillStyle = frame.ink; g.globalAlpha = .08; g.fillRect(x, m, w, ph); g.globalAlpha = 1; }
+    });
+    captionOn(g, state.caption.trim(), W / 2, m + ph + foot * .62, Math.round(W * .05), frame);
+    return c;
+  }
+
+  /* ---------- GIF: the shots as a looping boomerang ---------- */
+  async function makeGif() {
+    const { GIFEncoder, quantize, applyPalette } = await import("./vendor/gifenc/gifenc.esm.js");
+    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
+    const cards = idx.map((i) => shotCard(i, 480));
+    const order = cards.length > 2 ? [...cards.keys(), ...[...cards.keys()].slice(1, -1).reverse()] : [...cards.keys()];
+    const enc = GIFEncoder();
+    for (const k of order) {
+      const c = cards[k], { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+      const palette = quantize(data, 256), index = applyPalette(data, palette);
+      enc.writeFrame(index, c.width, c.height, { palette, delay: 600 });
+      await sleep(0); // keep the page responsive
+    }
+    enc.finish();
+    return new Blob([enc.bytes()], { type: "image/gif" });
+  }
+
+  /* ---------- Video reel: an animated story of your shots (9:16, ready for Reels and Stories) ---------- */
+  const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const easeBack = (x) => { x = Math.min(1, Math.max(0, x)); const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  function reelMime() {
+    if (typeof MediaRecorder === "undefined") return "";
+    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
+  }
+  async function makeReel(progress) {
+    const mime = reelMime(); if (!mime) throw new Error("no-recorder");
+    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
+    const W = 720, H = 1280, frame = currentFrame();
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+    const bg = document.createElement("canvas"); bg.width = W; bg.height = H + 200; paintBackground(bg.getContext("2d"), bg.width, bg.height, frame, 1.6);
+    const cards = idx.map((i) => shotCard(i, 640));
+    render(); const print = document.createElement("canvas"); print.width = canvas.width; print.height = canvas.height; print.getContext("2d").drawImage(canvas, 0, 0);
+    const INTRO = 1.4, SHOT = 1.7, OUTRO = 2.6, T = INTRO + SHOT * cards.length + OUTRO;
+    const cols = ["#1F5C4A", "#7CC8AC", "#F2B33D", "#E8536F", "#3A86FF"];
+    const bits = Array.from({ length: 90 }, (_, k) => ({ x: (k * 97) % W, d: (k * 37) % 100 / 100, s: 6 + (k % 5) * 2, c: cols[k % 5], sp: .7 + (k % 7) / 10 }));
+    const date = new Date().toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" });
+    function draw(t) {
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+      g.drawImage(bg, 0, -((t / T) * 200)); // slow upward drift
+      const cap = state.caption.trim();
+      if (t < INTRO + .3) { // title card: caption pops in, highlight wipes across
+        const a = ease((t - .1) / .6);
+        g.globalAlpha = Math.min(1, a) * (t > INTRO ? 1 - (t - INTRO) / .3 : 1);
+        g.save(); g.translate(W / 2, H * .46); g.scale(.8 + .2 * easeBack((t - .1) / .7), .8 + .2 * easeBack((t - .1) / .7));
+        g.font = `700 64px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; const tw = g.measureText(cap || "Flashbulb").width;
+        if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha *= .9; g.fillRect(-tw / 2 - 20, -34, (tw + 40) * ease((t - .4) / .5), 40); g.globalAlpha = Math.min(1, a); }
+        g.fillStyle = frame.ink; g.fillText(cap || "Flashbulb", 0, 0);
+        g.font = `600 26px "Urbanist", sans-serif`; g.globalAlpha *= .7; g.fillText(date, 0, 62); g.restore();
+      }
+      cards.forEach((card, k) => { // each shot slides in, slowly zooms, then flashes to the next
+        const t0 = INTRO + k * SHOT, lt = t - t0; if (lt < -.2 || lt > SHOT + .35) return;
+        const inX = (1 - ease(lt / .45)) * W, outX = lt > SHOT ? -ease((lt - SHOT) / .35) * W : 0, zoom = 1 + .06 * Math.min(1, Math.max(0, lt) / SHOT);
+        const cw = card.width * zoom, ch = card.height * zoom, x = (W - cw) / 2 + inX + outX, y = (H - ch) / 2 - 40, tilt = (k % 2 ? 1 : -1) * .025 * (1 - ease(lt / .6));
+        g.save(); g.translate(x + cw / 2, y + ch / 2); g.rotate(tilt);
+        g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 40; g.shadowOffsetY = 18; g.drawImage(card, -cw / 2, -ch / 2, cw, ch); g.restore();
+        g.font = `700 30px "Urbanist", sans-serif`; g.textAlign = "center"; g.fillStyle = frame.ink; g.globalAlpha = ease(lt / .5) * (lt > SHOT ? 0 : 1);
+        g.fillText(`SHOT ${idx[k] + 1}`, W / 2, y + ch + 70);
+        if (poseMode !== "off") { g.font = `700 40px "Comfortaa", "Century Gothic", sans-serif`; g.fillText(poseInfo(idx[k]).name, W / 2, y + ch + 120); }
+        g.globalAlpha = 1;
+        if (lt >= 0 && lt < .3) { g.fillStyle = "#fff"; g.globalAlpha = .85 * (1 - lt / .3); g.fillRect(0, 0, W, H); g.globalAlpha = 1; } // flash
+      });
+      const ot = t - (INTRO + SHOT * cards.length);
+      if (ot > -.2) { // the full print rises into place, confetti falls
+        const s = Math.min((W * .82) / print.width, (H * .78) / print.height), pw = print.width * s, ph = print.height * s;
+        const y = H - (H - ph) / 2 - ph - (1 - easeBack(ot / .9)) * -H * .9;
+        if (ot > .5) bits.forEach((b) => { // confetti behind the print
+          const yy = ((ot - .5) * 260 * b.sp + b.d * H) % (H + 40) - 20;
+          g.save(); g.translate(b.x + Math.sin(ot * 3 + b.d * 9) * 14, yy); g.rotate(ot * 4 + b.d * 6); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+        });
+        g.save(); g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 50; g.shadowOffsetY = 24; g.drawImage(print, (W - pw) / 2, y, pw, ph); g.restore();
+      }
+    }
+    const stream = c.captureStream(30), rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6 }), chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((res) => { rec.onstop = res; });
+    draw(0); rec.start(250);
+    const start = performance.now();
+    await new Promise((res) => {
+      (function tick() {
+        const t = (performance.now() - start) / 1000; draw(Math.min(t, T)); progress && progress(Math.min(1, t / T));
+        if (t < T) requestAnimationFrame(tick); else res();
+      })();
+    });
+    await sleep(150); rec.stop(); await done; stream.getTracks().forEach((tr) => tr.stop());
+    return new Blob(chunks, { type: mime.split(";")[0] });
+  }
 
   /* ---------- save / share ---------- */
   function fileName() {
@@ -1545,6 +1732,25 @@ h1.display em { font-style: normal; color: var(--accent); }
       if (!b) { setStatus("Couldn't make the image. Try again.", true); return; }
       saveBlob(b, fileName(), "print");
     }, "image/png");
+  });
+  function exportBusy(on) { ["saveBtn", "gifBtn", "reelBtn"].forEach((id) => { $(id).disabled = on; }); }
+  const baseName = () => fileName().replace(/\.png$/, "");
+  $("gifBtn").addEventListener("click", async () => {
+    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a GIF."); return; }
+    exportBusy(true); setStatus("Making your GIF…");
+    try { await saveBlob(await makeGif(), baseName() + ".gif", "GIF"); }
+    catch (e) { setStatus("Couldn't make the GIF. Try again.", true); }
+    exportBusy(false);
+  });
+  $("reelBtn").addEventListener("click", async () => {
+    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a video."); return; }
+    if (!reelMime()) { setStatus("This browser can't make videos. Try Chrome, or save a GIF instead.", true); return; }
+    exportBusy(true);
+    try {
+      const blob = await makeReel((p) => setStatus(`Making your video… ${Math.round(p * 100)}%`));
+      await saveBlob(blob, baseName() + (blob.type.includes("mp4") ? ".mp4" : ".webm"), "video");
+    } catch (e) { setStatus("Couldn't make the video. Try again, or save a GIF instead.", true); }
+    exportBusy(false);
   });
   $("shareImgBtn").addEventListener("click", () => {
     render();
@@ -1572,7 +1778,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     cancelAnimationFrame(fxRaf);
   }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
-  if (params.get("test") === "1") window.__fbTest = { drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
+  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, gif: () => makeGif(), reel: () => makeReel(), drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
   window.addEventListener("pagehide", stopAll);
 
   $("soloBtn").addEventListener("click", startSolo);

@@ -221,6 +221,25 @@ async function makeFaceVideo(browser) {
   const jdl = J.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await J.click('#saveBtn'); const jd = await jdl;
   check('Just me saves the print', !!jd, jd ? jd.suggestedFilename() : '');
+  check('Countdown beeps and shutter sounds play', (await J.evaluate(() => window.__fbTest.sounds())) >= 16, String(await J.evaluate(() => window.__fbTest.sounds())));
+  check('The print develops like instant film', await J.evaluate(() => document.getElementById('strip').classList.contains('develop')));
+  // GIF: a real animated GIF file
+  const gdl = J.waitForEvent('download', { timeout: 20000 }).catch(() => null);
+  await J.click('#gifBtn'); const gd = await gdl;
+  let gifOk = false, gifInfo = '';
+  if (gd) { const b = fs.readFileSync(await gd.path()); const frames = b.toString('latin1').split('\x21\xF9\x04').length - 1; gifOk = b.slice(0, 6).toString() === 'GIF89a' && frames >= 4; gifInfo = `${gd.suggestedFilename()}, ${frames} frames, ${Math.round(b.length / 1024)} KB`; }
+  check('Save GIF makes an animated boomerang GIF', gifOk, gifInfo);
+  // Video: an animated reel recorded in the browser
+  const vdl = J.waitForEvent('download', { timeout: 40000 }).catch(() => null);
+  await J.click('#reelBtn');
+  await J.waitForFunction(() => document.getElementById('status').textContent.includes('Making your video'), null, { timeout: 5000 }).catch(() => {});
+  const progressShown = (await J.textContent('#status')).includes('%');
+  const vd = await vdl; let vidInfo = '', vidOk = false;
+  if (vd) { const b = fs.readFileSync(await vd.path()); vidOk = b.length > 30000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(b.length / 1024)} KB`; fs.copyFileSync(await vd.path(), OUT + '/reel' + path.extname(vd.suggestedFilename())); }
+  check('Save video makes an animated video reel', vidOk && progressShown, vidInfo);
+  await J.click('#soundBtn');
+  check('Sound button turns sounds off', await J.evaluate(() => document.getElementById('soundBtn').classList.contains('off')));
+  await J.click('#soundBtn');
   await J.screenshot({ path: OUT + '/just-me.png', fullPage: true });
 
   // ---- phone: picked pose floats on the camera; white even when the phone is in dark mode ----
