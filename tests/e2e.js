@@ -13,7 +13,7 @@ const web = http.createServer((req, res) => {
   const file = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html');
   let f = file; if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
   if (!f.startsWith(ROOT) || !fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
-  const types = { '.html': 'text/html', '.js': 'application/javascript', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+  const types = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.gif': 'image/gif', '.json': 'application/json', '.webmanifest': 'application/manifest+json' };
   res.writeHead(200, { 'Content-Type': types[path.extname(f)] || 'application/octet-stream' });
   fs.createReadStream(f).pipe(res);
 }).listen(8080, '127.0.0.1');
@@ -161,6 +161,7 @@ async function makeFaceVideo(browser) {
   await B.click('#leaveBtn'); await A.waitForTimeout(1500);
   check('Host is told partner left', (await A.textContent('#pillText')) === 'Partner left');
   check('Phone layout: no sideways scroll', (await B.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  await A.close(); await B.close(); // free the test computer for the next sections
   // ---- Use my photos: built into the main page ----
   const S = await mk('Photos', { width: 1200, height: 900 });
   await S.goto('http://localhost:8080/index.html' + q); await S.waitForTimeout(400);
@@ -192,11 +193,13 @@ async function makeFaceVideo(browser) {
   await S.screenshot({ path: OUT + '/photos-mode.png', fullPage: true });
   await S.goto('http://localhost:8080/solo/?nosw=1'); await S.waitForTimeout(1200);
   check('Old /solo/ link opens Use my photos', (await S.textContent('#modeTag').catch(() => '')) === 'Your photos' && await S.isVisible('#photoPick'));
+  await S.close();
   const L = await mk('Lobby', { width: 390, height: 844 });
   await L.goto('http://localhost:8080/index.html?nosw=1'); await L.waitForTimeout(300);
   check('Start page offers Just me, Together and Use my photos', await L.isVisible('#soloBtn') && await L.isVisible('#startBtn') && await L.isVisible('#photosBtn'));
   check('Start page fits a phone screen', (await L.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await L.screenshot({ path: OUT + '/lobby-phone.png', fullPage: true });
+  await L.close();
 
   // ---- Just me (live camera, no partner) ----
   const J = await mk('JustMe', { width: 1280, height: 900 });
@@ -256,6 +259,7 @@ async function makeFaceVideo(browser) {
   check('Sound button turns sounds off', await J.evaluate(() => document.getElementById('soundBtn').classList.contains('off')));
   await J.click('#soundBtn');
   await J.screenshot({ path: OUT + '/just-me.png', fullPage: true });
+  await J.close();
 
   // ---- phone: picked pose floats on the camera; white even when the phone is in dark mode ----
   const PH = await mk('Phone', { width: 390, height: 844 });
@@ -277,6 +281,7 @@ async function makeFaceVideo(browser) {
   check('Phone: tapping a pose picks it and scrolls it into view', (await PH.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && await PH.evaluate(() => { const r = document.getElementById('poseRail'), c = r.children[3].getBoundingClientRect(), b = r.getBoundingClientRect(); return c.left >= b.left - 1 && c.right <= b.right + 1; }));
   check('Phone: no sideways scroll in the booth', (await PH.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await PH.screenshot({ path: OUT + '/phone-booth-light.png' });
+  await PH.close();
 
   // ---- offline: after one visit the booth opens with no internet ----
   const O = await mk('Offline', { width: 1280, height: 900 }, true);
@@ -294,7 +299,7 @@ async function makeFaceVideo(browser) {
   await O.goto('http://localhost:8080/solo/').catch(() => {}); await O.waitForTimeout(600);
   await O.waitForTimeout(800);
   check('Offline: Use my photos still opens', await O.isVisible('#photoPick'));
-  await O.context().setOffline(false);
+  await O.context().setOffline(false); await O.close();
   // ---- face stickers, with a real face as the fake camera ----
   const y4m = await makeFaceVideo(b);
   const fb = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--use-file-for-fake-video-capture=' + y4m, '--autoplay-policy=no-user-gesture-required'] });

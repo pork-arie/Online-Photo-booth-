@@ -1,5 +1,7 @@
 # Flashbulb Photo Booth
 
+[![Test the booth](https://github.com/pork-arie/Online-Photo-booth-/actions/workflows/test.yml/badge.svg)](https://github.com/pork-arie/Online-Photo-booth-/actions/workflows/test.yml)
+
 A photo booth in your browser. Shoot on your own, or with someone far away while you see and hear each other live. Every booth has pose cards, a 3‑2‑1 countdown and one printed strip at the end.
 
 ![Start page with three ways to shoot](docs/start-page.png)
@@ -10,7 +12,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 |---|---|---|
 | **Just me** | Your live camera, a pose for each shot, a countdown and one print | Not needed after the first visit |
 | **Together** | Two people far apart see and hear each other live, pose together and both get the same print | Needed |
-| **Use my photos** (`/solo/`) | Turn photos you already took into a strip with the same looks | Not needed after the first visit |
+| **Use my photos** | Turn photos from your gallery into a strip with the same looks. Face stickers go on the faces in your photos too | Not needed after the first visit |
 
 ### Together, step by step
 
@@ -18,7 +20,9 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
-5. **Save the print**, or **Share print** straight to apps on your phone.
+5. **Save it** as a picture, a looping GIF or an animated video (see below), or **Share print** straight to apps on your phone.
+
+If the connection drops for a moment, the booth reconnects by itself.
 
 ![Together: two cameras and the shared print](docs/live-booth.png)
 
@@ -44,6 +48,16 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 
 ![Puppy sticker following a face](docs/stickers.png)
 
+## Save as a picture, GIF or video
+
+When your shots are done, the print slides out and develops like an instant photo, with a burst of confetti. Then:
+
+- **Save print:** the full strip as a PNG picture.
+- **Save GIF:** your shots as a looping boomerang GIF, ready for chats.
+- **Save video:** an animated 9:16 video for Reels, Stories or TikTok. It shows your caption, then each shot sliding in with a flash and a slow zoom, then the whole print rising into place with confetti. It's made right in your browser (MP4 on most phones, WebM in some browsers).
+
+On iPhone and iPad, saving opens the share sheet. Tap **Save Image** or **Save Video** to put it in Photos.
+
 ## Features
 
 - **Layouts:** Strip (4 shots), Grid (2 × 2) or Instant (1 big shot). In Together, you and your partner are side by side in every frame.
@@ -57,6 +71,9 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
 - **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption
 - **Synced settings in Together:** whatever either person changes appears on both screens
+- **Sounds:** beeps on 3, 2, 1 and a shutter click on the flash. The speaker button turns them off.
+- **Motion:** the print ejects and develops, confetti when it's ready, shots pop in, and stickers wiggle when picked. All of this switches off if your phone is set to reduce motion.
+- **Lighter mode:** on slower phones the booth switches to lighter face tracking and a smaller camera picture by itself, so it stays smooth.
 
 ## Put it online (GitHub Pages)
 
@@ -66,27 +83,43 @@ Phones only allow the camera on secure (https) pages, and GitHub Pages provides 
 2. Under **Build and deployment**, set **Source** to *Deploy from a branch*, choose **main** and **/ (root)**, then **Save**.
 3. After a minute your booth is live at `https://pork-arie.github.io/Online-Photo-booth-/`.
 
-Any other static host works too, for example Netlify or Cloudflare Pages. The whole app is one file: `index.html`.
+Any other static host works too, for example Netlify or Cloudflare Pages. There's no build step: upload the folder as it is.
+
+## Make Together work on mobile data (relay server)
+
+The two phones normally connect directly. Many mobile data networks block that, so Together fails with "Couldn't connect your videos directly". A **relay (TURN) server** fixes it. Metered.ca has a free plan:
+
+1. Make a free account at [metered.ca](https://www.metered.ca/stun-turn) and create a TURN app.
+2. In its dashboard, find the **TURN Server Credentials API** URL. It looks like `https://YOUR-APP.metered.live/api/v1/turn/credentials?apiKey=…`.
+3. Open [`config.js`](config.js) in this repo, paste the URL into `turnCredentialsUrl`, and commit.
+
+The booth then uses the relay only when a direct connection isn't possible. `config.js` is public on your site, so keep an eye on usage in Metered's dashboard.
 
 ## Good to know
 
-- **Connection:** the two phones find each other through the free public [PeerJS](https://peerjs.com) server. After that, video and photos go directly between the two phones and are not stored on any server.
-- **Mobile data:** some mobile networks block direct connections between phones. If you see "Couldn't connect your videos directly", try both on Wi-Fi. For networks that need it, a relay (TURN) server can be added through the link:
-  `?turn=turn:your.server:3478&turnuser=USER&turnpass=PASS`
-- **Your own connection server:** you can run your own PeerJS server and point the booth at it with `?peerhost=example.com&peerport=443&peerpath=/`.
+- **Connection:** the two phones find each other through the free public [PeerJS](https://peerjs.com) server. After that, video and photos go directly between the two phones (or through your relay) and are not stored on any server. If the PeerJS service is busy, the booth tries again by itself.
+- **Your own connection server (optional):** for more reliability, run the PeerJS server yourself (for example `npx peerjs --port 9000`, or the free [PeerJS server template](https://github.com/peers/peerjs-server) on Render), then fill in `peerServer` in `config.js`.
 - **Limit:** two people per booth. A third person who tries to join is told the booth is full.
 
 ## Project layout
 
 | Path | What it is |
 |---|---|
-| `index.html` | The main booth: start page, Just me and Together (HTML, CSS and JavaScript in one file) |
-| `solo/index.html` | Use my photos: build a strip from photos you already have, with the same layouts, looks, seasons and poses |
+| `index.html` | The page: start screen and booth layout |
+| `css/booth.css` | All the styles, light and dark |
+| `js/booth.js` | The app: camera, connection, shooting, print, GIF and video |
+| `js/looks.js` | Layouts, film looks, frame colors and season themes |
+| `js/poses.js` | Pose artwork: classic and meme, solo and duo |
+| `js/stickers.js` | Face sticker artwork and placement |
+| `config.js` | Your settings: relay server and own connection server |
+| `solo/index.html` | Old link for the strip maker; it opens Use my photos |
 | `sw.js` | Keeps the booth working offline after the first visit |
 | `assets/stickers/` | Sticker artwork: Fluent Emoji 3D accessories and Noto animated emoji (see `CREDITS.md`) |
 | `vendor/face-api/` | Face tracking for the stickers ([face-api](https://github.com/vladmandic/face-api), MIT license) and its two small models |
+| `vendor/gifenc/` | GIF maker ([gifenc](https://github.com/mattdesl/gifenc), MIT license) |
+| `.github/workflows/test.yml` | Runs the automated test on GitHub after every push |
 | `manifest.webmanifest`, `icons/` | Lets phones install the booth like an app |
-| `tests/` | End-to-end test for both booths |
+| `tests/` | End-to-end test for the whole booth |
 | `docs/` | Screenshots used in this README |
 
 ## Test it
@@ -110,6 +143,8 @@ Open the booth link in a normal window and in a private (incognito) window, then
 
 ### Automated test
 
+The test runs on GitHub after every push (see the **Actions** tab and the badge at the top). To run it on your computer:
+
 ```bash
 cd tests
 npm install
@@ -125,11 +160,13 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that both screens get the same pose and countdown
 - that all 8 photos arrive (4 from each person)
 - that saving downloads the print
+- that a dropped connection reconnects by itself and the video comes back
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- Just me: the camera, pose list and swapping, 4 shots, and saving
+- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, and saving the print, GIF and video
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
-- Use my photos: the home page, adding a photo, saving, and the links between pages
+- lighter mode still tracks faces
+- Use my photos: adding photos, picking a slot, stickers placed on a face in a photo, saving, and the old `/solo/` link
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

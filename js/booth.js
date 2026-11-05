@@ -1,0 +1,1119 @@
+// Flashbulb booth: camera, connection, shooting, print, exports.
+(() => {
+  const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, figureBody, SVG_OPEN, figureSVG, duoSVG, DOWN_L, MEME_DUO, CLASSIC_DUO, DOWN_R, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
+  const state = {
+    photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
+    layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true,
+  };
+  let poseMode = "meme", posePrint = true, poseFor = "solo"; // poseFor: one person ("solo") or two side by side ("duo")
+  const picks = { classic: [0, 1, 2, 3], meme: [0, 1, 2, 3], classicDuo: [0, 1, 2, 3], memeDuo: [0, 1, 2, 3] };
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("strip"), ctx = canvas.getContext("2d");
+  if (!ctx.roundRect) ctx.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
+  /* ---------- Geometry ---------- */
+  function withPoses() { return !state.noPoses && poseMode !== "off" && posePrint; }
+  function spec(layout) {
+    if (withPoses()) {
+      if (layout === "strip") {
+        const m = 36, gap = 18, pw = 528, ph = 396, col = poseFor === "duo" ? 340 : 250, foot = 190, W = m + pw + gap + col + m;
+        return { W, H: m + 4 * ph + 3 * gap + foot, footY: m + 4 * ph + 3 * gap, foot, nameSize: 27,
+          slots: [0, 1, 2, 3].map((i) => ({ x: m, y: m + i * (ph + gap), w: pw, h: ph, pose: { x: m + pw + gap, y: m + i * (ph + gap), w: col, h: ph } })) };
+      }
+      if (layout === "grid") {
+        const m = 40, gx = 24, gy = 18, pw = 400, ph = 300, inner = 14, col = poseFor === "duo" ? 260 : 190, cell = pw + inner + col, foot = 180, W = m * 2 + cell * 2 + gx;
+        return { W, H: m + 2 * ph + gy + foot, footY: m + 2 * ph + gy, foot, nameSize: 22,
+          slots: [0, 1, 2, 3].map((i) => { const x = m + (i % 2) * (cell + gx), y = m + Math.floor(i / 2) * (ph + gy); return { x, y, w: pw, h: ph, pose: { x: x + pw + inner, y, w: col, h: ph } }; }) };
+      }
+      const m = 44, pw = 712, gap = 22, col = poseFor === "duo" ? 380 : 280, foot = 220, W = m + pw + gap + col + m;
+      return { W, H: m + pw + foot, footY: m + pw, foot, nameSize: 32, slots: [{ x: m, y: m, w: pw, h: pw, pose: { x: m + pw + gap, y: m, w: col, h: pw } }] };
+    }
+    if (layout === "strip") {
+      const W = 600, m = 36, gap = 18, pw = W - m * 2, ph = Math.round(pw * 3 / 4), foot = 190;
+      return { W, H: m + 4 * ph + 3 * gap + foot, slots: [0, 1, 2, 3].map((i) => ({ x: m, y: m + i * (ph + gap), w: pw, h: ph })), footY: m + 4 * ph + 3 * gap, foot };
+    }
+    if (layout === "grid") {
+      const W = 1000, m = 40, gap = 18, pw = (W - m * 2 - gap) / 2, ph = Math.round(pw * 3 / 4), foot = 180;
+      return { W, H: m + 2 * ph + gap + foot, slots: [0, 1, 2, 3].map((i) => ({ x: m + (i % 2) * (pw + gap), y: m + Math.floor(i / 2) * (ph + gap), w: pw, h: ph })), footY: m + 2 * ph + gap, foot };
+    }
+    const W = 800, m = 44, pw = W - m * 2, ph = pw, foot = 220;
+    return { W, H: m + ph + foot, slots: [{ x: m, y: m, w: pw, h: ph }], footY: m + ph, foot };
+  }
+
+
+  let mySide = "A";
+  const sideArr = (side) => (side === "B" ? state.photosB : state.photos);
+  const otherSide = () => (mySide === "A" ? "B" : "A");
+  function sourceFor(i, side = "A") {
+    const arr = sideArr(side);
+    if (arr[i]) return { src: arr[i].canvas, sample: false };
+    if (state.usingSamples) return { src: state.samples[side === "B" ? (i + 1) % 4 : i], sample: true };
+    return null;
+  }
+  function halves(rect) {
+    const g = Math.round(rect.w * .014) + 4, hw = (rect.w - g) / 2;
+    return [["A", { x: rect.x, y: rect.y, w: hw, h: rect.h }], ["B", { x: rect.x + hw + g, y: rect.y, w: hw, h: rect.h }]];
+  }
+  function cover(g, src, w, h) {
+    const sw = src.naturalWidth || src.width, sh = src.naturalHeight || src.height;
+    const s = Math.max(w / sw, h / sh), dw = sw * s, dh = sh * s;
+    g.save(); if (state.mirror) { g.translate(w, 0); g.scale(-1, 1); }
+    g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh); g.restore();
+  }
+  function shotImage(src, w, h) {
+    const off = document.createElement("canvas"); off.width = Math.round(w); off.height = Math.round(h);
+    const g = off.getContext("2d");
+    cover(g, src, off.width, off.height);
+    applyFilter(g, off.width, off.height, state.filter);
+    const v = g.createRadialGradient(off.width / 2, off.height / 2, off.height * .4, off.width / 2, off.height / 2, off.height * .9);
+    v.addColorStop(0, "rgba(0,0,0,0)"); v.addColorStop(1, "rgba(0,0,0,.16)");
+    g.fillStyle = v; g.fillRect(0, 0, off.width, off.height);
+    return off;
+  }
+  function drawShot(src, rect) { ctx.drawImage(shotImage(src, rect.w, rect.h), rect.x, rect.y); }
+  function drawEmpty(rect, i, frame, side) {
+    ctx.save();
+    if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .92; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); }
+    ctx.fillStyle = frame.ink; ctx.globalAlpha = .06; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+    ctx.globalAlpha = .55; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    const label = !state.duo ? `SHOT ${i + 1}` : side === mySide ? `YOUR SHOT ${i + 1}` : `PARTNER ${i + 1}`;
+    let size = Math.round(rect.h * .07);
+    ctx.font = `500 ${size}px "Urbanist", sans-serif`;
+    while (ctx.measureText(label).width > rect.w - 16 && size > 9) { size--; ctx.font = `500 ${size}px "Urbanist", sans-serif`; }
+    ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2);
+    ctx.restore();
+  }
+  function dateStamp() {
+    const d = new Date(), mon = d.toLocaleString("en", { month: "short" }).toUpperCase();
+    return `${String(d.getDate()).padStart(2, "0")} ${mon} ${d.getFullYear()}  ·  ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  function currentFrame() {
+    const t = THEMES[state.theme];
+    if (t && t.bg) return { name: t.label, bg: t.bg[0], ink: t.ink, hl: t.hl, theme: state.theme };
+    return FRAMES[state.frame];
+  }
+
+  const artCache = new Map();
+  function poseArt(idx, frame, duo) {
+    const f = duo ? MEME_DUO[idx] : MEME[idx], key = f.img ? f.img : `${duo ? "d" : "s"}${idx}|${frame.ink}|${frame.bg}`;
+    let e = artCache.get(key);
+    if (!e) {
+      const im = new Image(); e = { im, ready: false }; artCache.set(key, e);
+      im.onload = () => { e.ready = true; render(); };
+      im.src = f.img || ("data:image/svg+xml;charset=utf-8," + encodeURIComponent(duo ? duoSVG(f, frame.ink, frame.ink, frame.bg) : figureSVG(f, frame.ink, frame.bg)));
+    }
+    return e.ready ? e.im : null;
+  }
+  function drawPose(r, i, frame, nameSize) {
+    const key = packKey(), idx = picks[key][i]; if (idx == null) return;
+    const duo = poseFor === "duo", item = packList(key)[idx], name = poseMode === "meme" ? item.name : item[duo ? 2 : 1];
+    ctx.save();
+    if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .9; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill(); }
+    ctx.fillStyle = frame.ink; ctx.globalAlpha = .05;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill();
+    ctx.globalAlpha = 1;
+    const pad = 14, textH = nameSize * 2.6, aw = r.w - pad * 2, ah = r.h - textH - pad;
+    const cx = r.x + r.w / 2, cy = r.y + pad + ah / 2;
+    if (poseMode === "meme") {
+      const im = poseArt(idx, frame, duo);
+      if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min(aw / iw, ah / ih); ctx.drawImage(im, cx - iw * s / 2, cy - ih * s / 2, iw * s, ih * s); }
+    } else {
+      const text = duo ? item[0] + item[1] : item[0], size = duo ? Math.min(ah * .55, aw * .38) : Math.min(ah, aw) * .62;
+      ctx.font = `${Math.round(size)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, cx, cy);
+    }
+    ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.globalAlpha = .55; ctx.font = `600 ${Math.round(nameSize * .5)}px "Urbanist", sans-serif`;
+    ctx.fillText(`SHOT ${i + 1}`.split("").join(String.fromCharCode(8202)), r.x + r.w / 2, r.y + r.h - pad - nameSize * 1.25);
+    ctx.globalAlpha = 1; let size = nameSize;
+    const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
+    setF(); while (ctx.measureText(name).width > r.w - 20 && size > 12) { size -= 1; setF(); }
+    ctx.fillText(name, r.x + r.w / 2, r.y + r.h - pad - 4);
+    ctx.restore();
+  }
+
+  function render() {
+    const sp = spec(state.layout), frame = currentFrame();
+    canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "") + (canvas.classList.contains("develop") ? " develop" : "");
+    paintBackground(ctx, sp.W, sp.H, frame, sp.W / 600);
+    let anySample = false;
+    sp.slots.forEach((rect, i) => {
+      if (state.duo) {
+        halves(rect).forEach(([sd, hr]) => { const s = sourceFor(i, sd); if (s) { drawShot(s.src, hr); anySample = anySample || s.sample; } else drawEmpty(hr, i, frame, sd); });
+      } else {
+        const s = sourceFor(i);
+        if (s) { drawShot(s.src, rect); anySample = anySample || s.sample; } else drawEmpty(rect, i, frame);
+      }
+      if (rect.pose) drawPose(rect.pose, i, frame, sp.nameSize);
+    });
+    if (anySample && !state.hideSampleTag) {
+      const r = sp.slots[0];
+      ctx.save(); ctx.font = `500 16px "Urbanist", sans-serif`;
+      const tw = ctx.measureText("SAMPLE").width + 22;
+      ctx.fillStyle = "rgba(0,0,0,.5)"; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x + 14, r.y + 14, tw, 28, 14) : ctx.rect(r.x + 14, r.y + 14, tw, 28); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText("SAMPLE", r.x + 25, r.y + 29); ctx.restore();
+    }
+    const wpOn = withPoses(), cx = sp.W / 2, big = state.layout === "strip" ? (wpOn ? 48 : 42) : state.layout === "grid" ? (wpOn ? 66 : 56) : (wpOn ? 62 : 54);
+    ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    const cap = state.caption.trim(); let size = big;
+    const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
+    setF(); while (cap && ctx.measureText(cap).width > sp.W - 80 && size > 22) { size -= 2; setF(); }
+    const capY = sp.footY + sp.foot * (state.showDate ? .52 : .62);
+    if (cap && state.capHl) {
+      const tw = ctx.measureText(cap).width;
+      ctx.save(); ctx.translate(cx, capY); ctx.rotate(-0.012);
+      ctx.fillStyle = frame.hl; ctx.globalAlpha = .9; ctx.beginPath();
+      const hx = -tw / 2 - size * .35, hy = -size * .5, hw = tw + size * .7, hh = size * .62;
+      ctx.roundRect ? ctx.roundRect(hx, hy, hw, hh, size * .14) : ctx.rect(hx, hy, hw, hh); ctx.fill();
+      ctx.restore(); ctx.fillStyle = frame.ink;
+    }
+    if (cap) ctx.fillText(cap, cx, capY);
+    if (state.showDate) {
+      ctx.font = `500 ${state.layout === "strip" ? 15 : 18}px "Urbanist", sans-serif`; ctx.globalAlpha = .6;
+      ctx.fillText(dateStamp().split("").join(String.fromCharCode(8202)), cx, cap ? capY + 42 : sp.footY + sp.foot * .5);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  const packKey = () => poseMode + (poseFor === "duo" ? "Duo" : "");
+  const packList = (key = packKey()) => ({ classic: CLASSIC, meme: MEME, classicDuo: CLASSIC_DUO, memeDuo: MEME_DUO })[key] || MEME;
+
+  /* ---------- small helpers ---------- */
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const params = new URLSearchParams(location.search);
+  function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
+  function setPill(mode, text) { const p = $("pill"); p.hidden = false; p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
+  function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
+  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length);
+
+  /* ---------- settings UI ---------- */
+  function chip(label, pressed, onClick, swatch) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "chip"; b.setAttribute("aria-pressed", String(pressed));
+    if (swatch) { const s = document.createElement("span"); s.className = "sw"; s.style.background = swatch; b.appendChild(s); }
+    b.appendChild(document.createTextNode(label)); b.addEventListener("click", onClick); return b;
+  }
+  function buildUI() {
+    const lay = $("layouts"); lay.innerHTML = "";
+    Object.entries(LAYOUTS).forEach(([k, v]) => lay.appendChild(chip(`${v.label} · ${v.n === 1 ? "1 shot" : "4 shots"}`, state.layout === k, () => { state.layout = k; changed(); })));
+    const fl = $("films"); fl.innerHTML = "";
+    Object.entries(FILTERS).forEach(([k, v]) => fl.appendChild(chip(v, state.filter === k, () => { state.filter = k; changed(); })));
+    const lk = $("looks"); lk.innerHTML = "";
+    FRAMES.forEach((f, i) => lk.appendChild(chip(f.name, state.theme === "none" && state.frame === i, () => { state.frame = i; state.theme = "none"; changed(); }, f.bg)));
+    const se = $("seasons"); se.innerHTML = "";
+    se.appendChild(chip("None", state.theme === "none", () => { state.theme = "none"; changed(); }));
+    Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) se.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
+    const pm = $("poseModes"); pm.innerHTML = "";
+    [["off", "Off"], ["classic", "Classic"], ["meme", "Meme"]].forEach(([k, l]) => pm.appendChild(chip(l, poseMode === k, () => { poseMode = k; changed(); })));
+    const pf = $("poseFor"); pf.innerHTML = "";
+    [["solo", "Solo · 1 person"], ["duo", "Duo · 2 people"]].forEach(([k, l]) => pf.appendChild(chip(l, poseFor === k, () => { poseFor = k; selPose = 0; changed(); })));
+    $("poseForGroup").hidden = poseMode === "off";
+    $("poseListGroup").hidden = poseMode === "off";
+    renderPoseList(); renderRail();
+    $("posePrint").checked = posePrint; $("capHl").checked = state.capHl; $("showDate").checked = state.showDate;
+    if (document.activeElement !== $("caption")) $("caption").value = state.caption;
+    $("capCount").textContent = `${state.caption.length}/28`;
+    const n = LAYOUTS[state.layout].n;
+    $("shootLabel").textContent = photosMode ? "Add photos" : busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
+    if (photosMode) renderPick();
+  }
+  function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
+  let selPose = 0; // the pose shown beside the camera
+  // inks: in Together your figure is drawn in black, your partner's in green
+  function poseInfo(i, colored) {
+    const key = packKey(), item = packList(key)[picks[key][i]];
+    if (poseFor === "duo") {
+      const mine = "currentColor", theirs = colored && !solo ? "var(--accent)" : "currentColor";
+      if (poseMode === "meme") return { art: duoSVG(item, mySide === "A" ? mine : theirs, mySide === "A" ? theirs : mine), name: item.name, tip: item.tip, duo: true };
+      return { art: `<span class="emo duo" aria-hidden="true">${item[0]}${item[1]}</span>`, name: item[2], tip: item[3], duo: true };
+    }
+    if (poseMode === "meme") return { art: figureSVG(item), name: item.name, tip: item.tip };
+    return { art: `<span class="emo" aria-hidden="true">${item[0]}</span>`, name: item[1], tip: item[2] };
+  }
+  function pickPose(i) { selPose = i; renderRail(); renderPoseList(); }
+  function swapPose(i) {
+    const list = picks[packKey()], len = packList().length;
+    for (let k = 1; k <= len; k++) { const c = (list[i] + k) % len; if (!list.includes(c)) { list[i] = c; break; } }
+    selPose = i; changed();
+  }
+  function renderPoseList() {
+    const n = LAYOUTS[state.layout].n, box = $("poseList"); box.innerHTML = "";
+    if (poseMode === "off") return;
+    for (let i = 0; i < n; i++) {
+      const { art, name } = poseInfo(i, true);
+      const d = document.createElement("div"); d.className = "pose-item" + (i === selPose ? " sel" : "");
+      const b = document.createElement("button"); b.type = "button"; b.className = "pose-sel";
+      b.innerHTML = `${art}<span><small>Shot ${i + 1}</small><b></b></span>`; b.querySelector("b").textContent = name;
+      b.setAttribute("aria-label", `Shot ${i + 1}: ${name}. Show it beside the camera.`); b.setAttribute("aria-pressed", String(i === selPose));
+      b.addEventListener("click", () => pickPose(i));
+      const w = document.createElement("button"); w.type = "button"; w.className = "pose-swap"; w.textContent = "↻";
+      w.title = "Swap this pose"; w.setAttribute("aria-label", `Swap the pose for shot ${i + 1}`);
+      w.addEventListener("click", () => swapPose(i));
+      d.append(b, w); box.appendChild(d);
+    }
+  }
+  function renderRail() {
+    const n = LAYOUTS[state.layout].n, on = poseMode !== "off", rail = $("poseRail");
+    $("stageRow").classList.toggle("no-rail", !on); rail.hidden = !on;
+    if (!on) return;
+    if (selPose >= n) selPose = 0;
+    rail.innerHTML = "";
+    for (let i = 0; i < n; i++) {
+      const { art, name, duo } = poseInfo(i, true);
+      const b = document.createElement("button"); b.type = "button"; b.className = "rail-card" + (duo ? " duo" : ""); b.setAttribute("aria-pressed", String(i === selPose));
+      const who = !duo ? "" : solo ? `<span class="who2"><i>Left</i><i>Right</i></span>` : `<span class="who2"><i${mySide === "A" ? ' class="me"' : ""}>${mySide === "A" ? "You" : "Partner"}</i><i${mySide === "B" ? ' class="me"' : ""}>${mySide === "B" ? "You" : "Partner"}</i></span>`;
+      b.innerHTML = `${art}${who}<small>Shot ${i + 1}</small><b></b>`; b.querySelector("b").textContent = name;
+      b.setAttribute("aria-label", `Shot ${i + 1}: ${name}`);
+      b.addEventListener("click", () => pickPose(i));
+      rail.appendChild(b);
+    }
+    if (getComputedStyle(rail).display === "flex") {
+      const card = rail.children[selPose];
+      if (card) rail.scrollTo({ left: card.offsetLeft - rail.offsetLeft - (rail.clientWidth - card.offsetWidth) / 2, behavior: busy ? "smooth" : "auto" });
+    }
+  }
+  // light / dark switch (white by default)
+  function setTheme(t) {
+    document.documentElement.dataset.theme = t;
+    try { localStorage.setItem("fb-theme", t); } catch {}
+    $("themeColor").setAttribute("content", t === "dark" ? "#0F1110" : "#F3F4F2");
+    $("themeBtn").setAttribute("aria-label", t === "dark" ? "Switch to light mode" : "Switch to dark mode");
+  }
+  $("themeBtn").addEventListener("click", () => setTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+  setTheme(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+  // settings tabs (remembered on this device)
+  function showTab(name) {
+    ["look", "poses", "caption"].forEach((t) => { $("tab-" + t).hidden = t !== name; $("tabBtn-" + t).setAttribute("aria-selected", String(t === name)); });
+    try { localStorage.setItem("fb-tab", name); } catch {}
+  }
+  ["look", "poses", "caption"].forEach((t) => $("tabBtn-" + t).addEventListener("click", () => showTab(t)));
+  try { const t = localStorage.getItem("fb-tab"); if (t === "look" || t === "poses" || t === "caption") showTab(t); } catch {}
+  $("showDate").addEventListener("change", (e) => { state.showDate = e.target.checked; changed(); });
+  $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
+  $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
+  $("posePrint").addEventListener("change", (e) => { posePrint = e.target.checked; changed(); });
+  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
+
+  function renderThumbs() {
+    const n = LAYOUTS[state.layout].n, box = $("thumbs"); box.innerHTML = "";
+    box.classList.toggle("solo", solo);
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement("div");
+      (solo ? ["A"] : ["A", "B"]).forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; if (!p.shown) { im.className = "pop"; p.shown = true; } d.appendChild(im); } else d.appendChild(document.createElement("span")); });
+      box.appendChild(d);
+    }
+  }
+
+  /* ---------- Face stickers: live decorations that follow each face ---------- */
+  // The camera is drawn onto a canvas with the stickers, and that canvas is what you see, what your partner sees, and what the photos capture.
+  let fx = "none";
+  try { const v = localStorage.getItem("fb-fx"); if (FX.some((f) => f[0] === v)) fx = v; } catch {}
+  let camStream = null, srcVideo = null, fxCanvas = null, fxCtx = null, fxRaf = 0, pipelineOn = false;
+  let faces = [], faceLib = "idle", detecting = false;
+
+  function startPipeline(cam) {
+    camStream = cam;
+    if (!srcVideo) {
+      srcVideo = document.createElement("video");
+      srcVideo.muted = true; srcVideo.playsInline = true; srcVideo.setAttribute("playsinline", ""); srcVideo.setAttribute("aria-hidden", "true");
+      srcVideo.style.cssText = "position:fixed;left:0;top:0;width:2px;height:2px;opacity:0;pointer-events:none";
+      document.body.appendChild(srcVideo);
+    }
+    srcVideo.srcObject = cam; srcVideo.play().catch(() => {});
+    fxCanvas = document.createElement("canvas"); fxCanvas.width = 640; fxCanvas.height = 480;
+    fxCtx = fxCanvas.getContext("2d");
+    pipelineOn = typeof fxCanvas.captureStream === "function";
+    if (!pipelineOn) return cam;
+    cancelAnimationFrame(fxRaf); fxLoop();
+    if (fx !== "none") { preloadSticker(fx); loadFaces(); }
+    return new MediaStream([fxCanvas.captureStream(30).getVideoTracks()[0], ...cam.getAudioTracks()]);
+  }
+  let lite = params.get("lite") === "1", detectMs = 0;
+  $("stage").dataset.lite = lite ? "1" : "0";
+  function setLite(on) {
+    if (lite === on) return; lite = on;
+    $("stage").dataset.lite = on ? "1" : "0";
+    if (on) setStatus("Lighter mode on to keep things smooth on this phone.");
+  }
+  function fxLoop() {
+    fxRaf = requestAnimationFrame(fxLoop);
+    const v = srcVideo; if (!v || !v.videoWidth) return;
+    const sc = lite && v.videoWidth > 720 ? 720 / v.videoWidth : 1, w = Math.round(v.videoWidth * sc), h = Math.round(v.videoHeight * sc);
+    if (fxCanvas.width !== w || fxCanvas.height !== h) { fxCanvas.width = w; fxCanvas.height = h; }
+    fxCtx.setTransform(sc, 0, 0, sc, 0, 0); // stickers are placed in camera pixels
+    fxCtx.drawImage(v, 0, 0);
+    if (fx !== "none") drawStickers(fxCtx, performance.now() / 1000);
+    fxCtx.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function loadScript(src) { return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+  async function loadFaces() {
+    if (faceLib === "ready") { detectLoop(); return; }
+    if (faceLib === "loading") return;
+    faceLib = "loading"; setStatus("Loading face stickers…");
+    try {
+      if (typeof faceapi === "undefined") await loadScript("vendor/face-api/face-api.js");
+      await faceapi.nets.tinyFaceDetector.loadFromUri("vendor/face-api/models");
+      await faceapi.nets.faceLandmark68TinyNet.loadFromUri("vendor/face-api/models");
+      faceLib = "ready"; setStatus("Face stickers on. Move around and they follow you.");
+      detectLoop();
+    } catch (e) { faceLib = "failed"; setStatus("Face stickers couldn't load on this device.", true); }
+  }
+  const P = (p) => ({ x: p.x, y: p.y });
+  const mean = (pts, a, b) => { let x = 0, y = 0; for (let i = a; i <= b; i++) { x += pts[i].x; y += pts[i].y; } const n = b - a + 1; return { x: x / n, y: y / n }; };
+  function faceGeometry(pts) {
+    const eyeL = mean(pts, 36, 41), eyeR = mean(pts, 42, 47), nose = P(pts[30]), mouth = mean(pts, 48, 59), chin = P(pts[8]);
+    const mid = { x: (eyeL.x + eyeR.x) / 2, y: (eyeL.y + eyeR.y) / 2 };
+    const e = Math.hypot(eyeR.x - eyeL.x, eyeR.y - eyeL.y), ang = Math.atan2(eyeR.y - eyeL.y, eyeR.x - eyeL.x);
+    const down = (p) => (p.x - mid.x) * -Math.sin(ang) + (p.y - mid.y) * Math.cos(ang); // distance below the eye line
+    return { x: mid.x, y: mid.y, e, ang, nd: down(nose), md: down(mouth), cd: down(chin) };
+  }
+  function updateFaces(res) {
+    const now = performance.now();
+    if (!res.length) { // nobody found this time: keep the last stickers briefly so they don't blink
+      faces = faces.filter((f) => now - f.seen < Math.max(700, detectMs * 2.5)); // slower devices check less often
+    } else {
+      const used = new Set();
+      faces = res.map((r) => {
+        const g = faceGeometry(r.landmarks.positions);
+        let old = null, best = g.e * 3;
+        faces.forEach((f) => { const d = Math.hypot(f.x - g.x, f.y - g.y); if (d < best && !used.has(f)) { best = d; old = f; } });
+        if (old) { // smooth small jitters, follow big moves right away
+          used.add(old); const a = best < g.e * .6 ? 0.6 : 1, px = old.x + (old.vx || 0) * Math.min(now - old.seen, 300), py = old.y + (old.vy || 0) * Math.min(now - old.seen, 300);
+          for (const k of ["x", "y", "e", "nd", "md", "cd"]) g[k] = old[k] + (g[k] - old[k]) * a;
+          g.ang = old.ang + (g.ang - old.ang) * a;
+          const dt = now - old.seen; // speed in pixels per millisecond, smoothed
+          if (dt > 0 && dt < 1000) { g.vx = ((g.x - old.x) / dt) * .6 + (old.vx || 0) * .4; g.vy = ((g.y - old.y) / dt) * .6 + (old.vy || 0) * .4; }
+          if (Math.hypot(px - g.x, py - g.y) > g.e * 1.5) { g.vx = 0; g.vy = 0; } // direction changed: stop leading
+        }
+        g.seen = now; return g;
+      });
+    }
+    $("stage").dataset.faces = String(faces.length);
+  }
+  async function detectLoop() {
+    if (detecting || faceLib !== "ready") return;
+    detecting = true;
+    const full = new faceapi.TinyFaceDetectorOptions({ inputSize: 256, scoreThreshold: 0.55 });
+    const light = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
+    while (camStream) {
+      if (fx !== "none" && srcVideo && srcVideo.videoWidth) {
+        const t0 = performance.now();
+        try { updateFaces(await faceapi.detectAllFaces(srcVideo, lite ? light : full).withFaceLandmarks(true)); } catch {}
+        const ms = performance.now() - t0; detectMs = detectMs ? detectMs * .8 + ms * .2 : ms;
+        if (!lite && detectMs > 200 && params.get("lite") !== "0") setLite(true); // slow phone: lighter checks, smaller video
+        await sleep(lite ? 140 : 60);
+      } else { faces = []; await sleep(300); }
+    }
+    detecting = false;
+  }
+
+  function drawStickers(g, t) {
+    const draw = STICKERS[fx]; if (!draw) return;
+    const now = performance.now();
+    faces.forEach((f) => {
+      const lead = Math.min(now - f.seen, 250); // between face checks, keep moving the way the face was moving
+      g.save(); g.translate(f.x + (f.vx || 0) * lead, f.y + (f.vy || 0) * lead); g.rotate(f.ang); try { draw(g, f, t); } catch {} g.restore();
+    });
+  }
+  function buildFx() {
+    const bar = $("fxBar"); bar.innerHTML = "";
+    FX.forEach(([k, label, ch]) => {
+      const b = document.createElement("button"); b.type = "button"; b.className = "fx"; b.setAttribute("aria-pressed", String(fx === k));
+      b.innerHTML = ch.includes("/") ? `<img class="e" src="${ch}" alt="" loading="lazy" decoding="async"><span></span>` : `<span class="e" aria-hidden="true">${ch}</span><span></span>`;
+      b.lastChild.textContent = label;
+      b.addEventListener("click", () => {
+        fx = k; try { localStorage.setItem("fb-fx", k); } catch {}
+        preloadSticker(k);
+        buildFx();
+        if (photosMode) { rebakeAll(); return; }
+        if (k === "none") { setStatus("Face stickers off."); return; }
+        if (!pipelineOn) { setStatus("Face stickers aren't supported in this browser. Try Chrome or Safari.", true); return; }
+        if (faceLib === "ready") { setStatus(`${label} on. Move around and it follows you.`); detectLoop(); } else loadFaces();
+      });
+      bar.appendChild(b);
+    });
+  }
+
+  /* ---------- camera ---------- */
+  let localStream = null, facing = "user", micOn = true, solo = false;
+  async function openCamera(withAudio = true) {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error("nomedia"), { name: "NoMedia" });
+    return navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } },
+      audio: withAudio ? { echoCancellation: true, noiseSuppression: true } : false,
+    });
+  }
+  function cameraError(e) {
+    const n = e && e.name;
+    if (n === "NotAllowedError") return solo ? "Camera access was blocked. Allow the camera for this site in your browser settings, then try again." : "Camera access was blocked. Allow camera and microphone for this site in your browser settings, then try again.";
+    if (n === "NotFoundError" || n === "OverconstrainedError") return "No camera was found on this device.";
+    if (n === "NoMedia") return "This browser can't use the camera here. Open the booth over https in Chrome, Safari or Edge.";
+    if (n === "NotReadableError") return "Another app is using your camera. Close it and try again.";
+    return "Couldn't start your camera. Try again.";
+  }
+  function localVideo() { return mySide === "A" ? $("vidA") : $("vidB"); }
+  function remoteVideo() { return mySide === "A" ? $("vidB") : $("vidA"); }
+  function showLocal() {
+    const v = localVideo(); v.srcObject = localStream; v.muted = true; v.play().catch(() => {});
+    $(mySide === "A" ? "whoA" : "whoB").textContent = "You";
+    $(mySide === "A" ? "whoB" : "whoA").textContent = "Partner";
+    $(mySide === "A" ? "waitA" : "waitB").hidden = true;
+    if (solo) return;
+    const w = $(mySide === "A" ? "waitB" : "waitA"); w.hidden = false; w.textContent = "Waiting for your partner to join…";
+  }
+  function showRemote(stream) {
+    const v = remoteVideo(); v.srcObject = stream; v.muted = false;
+    v.play().catch(() => { setStatus("Tap anywhere to hear your partner."); document.addEventListener("click", () => v.play().catch(() => {}), { once: true }); });
+    $(mySide === "A" ? "waitB" : "waitA").hidden = true;
+  }
+  function clearRemote(msg) {
+    const v = remoteVideo(); v.srcObject = null;
+    const w = $(mySide === "A" ? "waitB" : "waitA"); w.hidden = false; w.textContent = msg || "Waiting for your partner to join…";
+  }
+  $("micBtn").addEventListener("click", () => {
+    micOn = !micOn; if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = micOn; });
+    $("micBtn").classList.toggle("off", !micOn); $("micBtn").setAttribute("aria-label", micOn ? "Mute microphone" : "Unmute microphone");
+    setStatus(micOn ? "Microphone on." : "Microphone muted.");
+  });
+  let flipping = false;
+  const getCam = (mode, exact) => navigator.mediaDevices.getUserMedia({ video: { facingMode: exact ? { exact: mode } : mode, width: { ideal: 1280 }, height: { ideal: 960 } } });
+  $("flipBtn").addEventListener("click", async () => {
+    if (flipping || !localStream) return;
+    flipping = true; $("flipBtn").disabled = true;
+    const want = facing === "user" ? "environment" : "user";
+    const old = camStream.getVideoTracks()[0];
+    if (old) old.stop(); // most phones can only have one camera open at a time
+    let s = null, switched = false;
+    try { s = await getCam(want, true); switched = true; } catch {
+      try { s = await getCam(want, false); switched = true; } catch {}
+    }
+    if (!s) { try { s = await getCam(facing, false); } catch {} } // could not switch: reopen the camera we had
+    if (!s) { setStatus("Your camera stopped. Tap Leave and start again.", true); flipping = false; $("flipBtn").disabled = false; return; }
+    if (switched) facing = want;
+    const nt = s.getVideoTracks()[0];
+    camStream = new MediaStream([nt, ...camStream.getAudioTracks()]);
+    srcVideo.srcObject = camStream; srcVideo.play().catch(() => {});
+    const v = localVideo();
+    if (!pipelineOn) { // no sticker canvas in this browser: send the camera itself
+      localStream = camStream; v.srcObject = localStream; v.play().catch(() => {});
+      if (call && call.peerConnection) { const snd = call.peerConnection.getSenders().find((x) => x.track && x.track.kind === "video"); if (snd) snd.replaceTrack(nt).catch(() => {}); }
+    }
+    v.style.transform = facing === "user" ? "" : "none";
+    send({ t: "facing", user: facing === "user" });
+    setStatus(!switched ? "Couldn't open the other camera on this device." : facing === "user" ? "Front camera on." : "Back camera on.", !switched);
+    flipping = false; $("flipBtn").disabled = false;
+  });
+
+  /* ---------- connection (PeerJS) ---------- */
+  const PREFIX = "flashbulb-live-";
+  const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const genCode = () => Array.from({ length: 6 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join("");
+  let peer = null, conn = null, call = null, code = "", busy = false, leaving = false, reconnectTries = 0;
+  // Connection settings come from config.js (relay server, own PeerJS server); link parameters override them for testing.
+  const CFG = window.FLASHBULB_CONFIG || {};
+  let iceCache = null;
+  async function iceServers() {
+    if (iceCache) return iceCache;
+    const list = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+    (Array.isArray(CFG.iceServers) ? CFG.iceServers : []).forEach((x) => { if (x && x.urls) list.push(x); });
+    if (params.get("turn")) list.push({ urls: params.get("turn"), username: params.get("turnuser") || "", credential: params.get("turnpass") || "" });
+    if (CFG.turnCredentialsUrl) {
+      try {
+        const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 5000);
+        const r = await fetch(CFG.turnCredentialsUrl, { signal: ctl.signal }); clearTimeout(t);
+        const extra = await r.json();
+        if (Array.isArray(extra)) extra.forEach((x) => { if (x && x.urls) list.push(x); });
+      } catch (e) { /* relay unavailable: direct connections still work on most Wi-Fi */ }
+    }
+    iceCache = list; return list;
+  }
+  const hasRelay = () => (iceCache || []).some((x) => [].concat(x.urls).some((u) => /^turns?:/.test(u)));
+  async function peerOptions() {
+    const o = { debug: 0, config: { iceServers: await iceServers() } }, ps = CFG.peerServer;
+    if (params.get("peerhost")) { o.host = params.get("peerhost"); o.port = +(params.get("peerport") || 443); o.path = params.get("peerpath") || "/"; o.secure = params.get("peersecure") !== "0"; }
+    else if (ps && ps.host) { o.host = ps.host; o.port = +(ps.port || 443); o.path = ps.path || "/"; o.secure = ps.secure !== false; if (ps.key) o.key = ps.key; }
+    return o;
+  }
+  const serviceTrouble = (t) => t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed";
+  // Keep the link to the connection service alive if it drops for a moment.
+  function keepAlive(p) { p.on("disconnected", () => { if (!leaving && !p.destroyed) setTimeout(() => { try { if (p.disconnected && !p.destroyed) p.reconnect(); } catch (e) {} }, 1500); }); }
+  function enterBooth() {
+    $("lobby").hidden = true; $("booth").hidden = false;
+    state.duo = !solo; poseFor = solo ? "solo" : "duo";
+    $("stage").classList.toggle("solo", solo);
+    $("modeTag").textContent = solo ? "Just me" : "Together";
+    $("codeWrap").hidden = solo; $("micBtn").hidden = solo;
+    if (solo) { $("pill").hidden = true; $("shootBtn").disabled = false; }
+    $("codeChip").textContent = code; showLocal(); buildUI(); render(); renderThumbs();
+    if (navigator.share) $("shareImgBtn").hidden = false;
+    window.scrollTo(0, 0);
+  }
+  async function startSolo() {
+    solo = true; busyBtns(true); $("soloBtn").disabled = true; lobbyNote("Starting your camera…");
+    try { localStream = startPipeline(await openCamera(false)); } catch (e) { busyBtns(false); $("soloBtn").disabled = false; lobbyNote(cameraError(e), true); solo = false; return; }
+    mySide = "A"; enterBooth();
+    setStatus(LAYOUTS[state.layout].n === 1 ? "Tap Take the shot when you're ready." : "Tap Start when you're ready. You'll get a pose and a countdown for each shot.");
+  }
+  function lobbyNote(msg, err) { const n = $("lobbyNote"); n.textContent = msg; n.classList.toggle("err", !!err); }
+  function busyBtns(on) { ["startBtn", "joinBtn"].forEach((id) => { $(id).disabled = on; }); }
+
+  async function startBooth() {
+    if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
+    busyBtns(true); lobbyNote("Starting your camera…");
+    try { localStream = startPipeline(await openCamera()); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
+    mySide = "A"; code = genCode();
+    const opts = await peerOptions();
+    const tryOpen = (attempt) => {
+      const p = peer = new Peer(PREFIX + code, opts); keepAlive(p);
+      p.on("open", () => { if (!$("booth").hidden) return; enterBooth(); setPill("wait", "Waiting for your partner"); setStatus(`Your booth is open. Send your partner the code ${code} or tap Share link.`); });
+      p.on("error", (e) => {
+        if (e.type === "unavailable-id" && attempt < 3) { p.destroy(); code = genCode(); tryOpen(attempt + 1); return; }
+        if (serviceTrouble(e.type) && !p.open && attempt < 3) { // the connection service is busy: try again
+          lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
+        }
+        if (serviceTrouble(e.type)) { if ($("booth").hidden) { lobbyNote("Couldn't reach the booth service. Check your internet and try again.", true); busyBtns(false); } else setPill("wait", "Reconnecting"); return; }
+        if (e.type !== "peer-unavailable") setStatus("Connection problem: " + e.type, true);
+      });
+      p.on("connection", (c) => {
+        if (conn && conn.open) { c.on("open", () => { c.send({ t: "full" }); setTimeout(() => c.close(), 500); }); return; }
+        wireConn(c);
+      });
+      p.on("call", (cl) => {
+        if (call && call.open && conn && conn.open) { cl.close(); return; }
+        if (call && call !== cl) { try { call.close(); } catch (e) {} } // a returning partner replaces the old video link
+        call = cl; cl.answer(localStream); wireCall(cl);
+      });
+    };
+    tryOpen(0);
+  }
+  async function joinBooth() {
+    const c = $("joinCode").value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (c.length !== 6) { lobbyNote("Booth codes have 6 letters and numbers.", true); return; }
+    if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
+    busyBtns(true); lobbyNote("Starting your camera…");
+    try { localStream = startPipeline(await openCamera()); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
+    mySide = "B"; code = c; leaving = false;
+    const opts = await peerOptions();
+    const tryOpen = (attempt) => {
+      const p = peer = new Peer(opts); keepAlive(p);
+      p.on("open", () => {
+        if (!$("booth").hidden) return;
+        lobbyNote("Connecting to your partner…");
+        const dc = guestConnect();
+        const t = setTimeout(() => { if ($("booth").hidden && (!conn || !conn.open)) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
+        dc.on("open", () => { clearTimeout(t); if ($("booth").hidden) enterBooth(); });
+      });
+      p.on("error", (e) => {
+        if (e.type === "peer-unavailable") {
+          if (!$("booth").hidden) return; // reconnecting: keep trying quietly
+          lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return;
+        }
+        if (serviceTrouble(e.type) && !p.open && attempt < 3 && $("booth").hidden) {
+          lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
+        }
+        if ($("booth").hidden) { lobbyNote("Connection problem: " + e.type + ". Check your internet and try again.", true); busyBtns(false); }
+      });
+    };
+    tryOpen(0);
+  }
+  function guestConnect() {
+    const dc = peer.connect(PREFIX + code, { reliable: true });
+    wireConn(dc);
+    if (call) { try { call.close(); } catch (e) {} }
+    call = peer.call(PREFIX + code, localStream); wireCall(call);
+    return dc;
+  }
+  // If the link to the partner drops, the person who joined calls back automatically.
+  function scheduleReconnect() {
+    if (leaving || mySide !== "B") return;
+    if (reconnectTries >= 10) { setPill("wait", "Disconnected"); setStatus("Lost the connection to your partner. Tap Leave and join again.", true); return; }
+    reconnectTries++;
+    setPill("wait", "Reconnecting"); setStatus(`Connection lost. Reconnecting… (try ${reconnectTries})`);
+    setTimeout(() => {
+      if (leaving || (conn && conn.open)) return;
+      try { if (peer.disconnected && !peer.destroyed) peer.reconnect(); } catch (e) {}
+      guestConnect();
+      setTimeout(() => { if (!leaving && (!conn || !conn.open)) scheduleReconnect(); }, 5000);
+    }, 1500);
+  }
+  function wireCall(cl) {
+    cl.on("stream", (s) => showRemote(s));
+    cl.on("close", () => { if (call === cl) { call = null; clearRemote("Your partner's video stopped."); } });
+    cl.on("error", () => setStatus("The video connection dropped. Reconnecting…", true));
+    const pc = cl.peerConnection;
+    if (pc) pc.addEventListener("iceconnectionstatechange", () => {
+      if (pc.iceConnectionState === "failed") setStatus(hasRelay() ? "The video connection failed. Reconnecting…" : "Couldn't connect your videos directly. Try both of you on Wi-Fi, or add a relay server (see the README).", true);
+    });
+  }
+  function wireConn(c) {
+    conn = c;
+    c.on("open", () => {
+      setPill("on", "Connected"); $("shootBtn").disabled = false;
+      setStatus(reconnectTries ? "Reconnected!" : mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
+      reconnectTries = 0;
+      if (mySide === "A") send({ t: "settings", s: settingsPayload() });
+      send({ t: "facing", user: facing === "user" });
+    });
+    c.on("data", onData);
+    c.on("close", () => {
+      if (conn !== c) return;
+      conn = null; $("shootBtn").disabled = true;
+      if (mySide === "B" && !leaving) { clearRemote("Reconnecting to your partner…"); scheduleReconnect(); return; }
+      setPill("wait", "Partner left"); clearRemote("Your partner left. They can join again with the same code."); setStatus("Your partner left the booth. They can rejoin with the same code.");
+    });
+  }
+  function send(m) { if (conn && conn.open) { try { conn.send(m); } catch (e) { setStatus("Couldn't send to your partner.", true); } } }
+
+  /* ---------- settings sync ---------- */
+  function settingsPayload() {
+    return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, caption: state.caption,
+      capHl: state.capHl, showDate: state.showDate, poseMode, posePrint, poseFor,
+      picks: { classic: picks.classic.slice(), meme: picks.meme.slice(), classicDuo: picks.classicDuo.slice(), memeDuo: picks.memeDuo.slice() } };
+  }
+  function sendSettings() { send({ t: "settings", s: settingsPayload() }); }
+  let capTimer; function sendSettingsSoon() { clearTimeout(capTimer); capTimer = setTimeout(sendSettings, 350); }
+  const okPicks = (a, len) => Array.isArray(a) && a.length === 4 && a.every((v) => Number.isInteger(v) && v >= 0 && v < len);
+  function applySettings(d) {
+    if (!d || typeof d !== "object") return;
+    if (LAYOUTS[d.layout] && !busy) state.layout = d.layout;
+    if (FILTERS[d.filter]) state.filter = d.filter;
+    if (Number.isInteger(d.frame) && FRAMES[d.frame]) state.frame = d.frame;
+    if (THEMES[d.theme]) state.theme = d.theme;
+    if (typeof d.caption === "string" && document.activeElement !== $("caption")) state.caption = d.caption.slice(0, 28);
+    if (typeof d.capHl === "boolean") state.capHl = d.capHl;
+    if (typeof d.showDate === "boolean") state.showDate = d.showDate;
+    if (["off", "classic", "meme"].includes(d.poseMode)) poseMode = d.poseMode;
+    if (typeof d.posePrint === "boolean") posePrint = d.posePrint;
+    if (d.poseFor === "solo" || d.poseFor === "duo") poseFor = d.poseFor;
+    if (d.picks) [["classic", CLASSIC], ["meme", MEME], ["classicDuo", CLASSIC_DUO], ["memeDuo", MEME_DUO]].forEach(([k, list]) => { if (okPicks(d.picks[k], list.length)) picks[k] = d.picks[k].slice(); });
+    changed(true);
+  }
+
+  /* ---------- shots ---------- */
+  let partnerFront = true;
+  function frameFrom(video, backCamera) {
+    const w = video.videoWidth || video.width, h = video.videoHeight || video.height; if (!w || !h) return null;
+    const c = document.createElement("canvas"); c.width = w; c.height = h; const g = c.getContext("2d");
+    if (backCamera) { g.translate(w, 0); g.scale(-1, 1); } // the print mirrors photos like a selfie; undo that for the back camera
+    g.drawImage(video, 0, 0, w, h);
+    return c;
+  }
+  function toShot(c) {
+    const t = document.createElement("canvas"), ts = 220 / Math.max(c.width, c.height);
+    t.width = Math.round(c.width * ts); t.height = Math.round(c.height * ts); t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+    return { canvas: c, thumb: t.toDataURL("image/jpeg", .8) };
+  }
+  function encode(c) {
+    const s = Math.min(1, 1100 / Math.max(c.width, c.height)), t = document.createElement("canvas");
+    t.width = Math.round(c.width * s); t.height = Math.round(c.height * s); t.getContext("2d").drawImage(c, 0, 0, t.width, t.height);
+    return t.toDataURL("image/jpeg", .85);
+  }
+  function decode(url) {
+    if (typeof url !== "string" || !url.startsWith("data:image/jpeg;base64,") || url.length > 3000000) return Promise.resolve(null);
+    return new Promise((res) => { const im = new Image(); im.onload = () => { const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0); res(toShot(c)); }; im.onerror = () => res(null); im.src = url; });
+  }
+  async function onData(m) {
+    if (!m || typeof m !== "object") return;
+    if (m.t === "settings") applySettings(m.s);
+    else if (m.t === "start") { if (!busy) runSession(false, m.n); }
+    else if (m.t === "shot" && Number.isInteger(m.i) && m.i >= 0 && m.i < 4) {
+      const p = await decode(m.img); if (!p) return;
+      sideArr(otherSide())[m.i] = p; render(); renderThumbs();
+    } else if (m.t === "facing") {
+      partnerFront = m.user !== false; remoteVideo().style.transform = partnerFront ? "" : "none";
+    } else if (m.t === "full") { setStatus("That booth already has two people.", true); }
+  }
+  function overlay(html) { $("overlay").innerHTML = html; }
+  function poseCardHTML(i, n) {
+    const head = `<small>Shot ${i + 1} of ${n}</small>`;
+    if (poseMode === "off") return `<div class="pose-pop">${head}<b>Strike a pose!</b></div>`;
+    if (poseMode === "meme") { const f = MEME[picks.meme[i]]; return `<div class="pose-pop"><div class="art">${figureSVG(f, "#111413", "#ffffff")}</div>${head}<b>${f.name}</b></div>`; }
+    const c = CLASSIC[picks.classic[i]]; return `<div class="pose-pop"><div class="art"><span class="emo">${c[0]}</span></div>${head}<b>${c[1]}</b></div>`;
+  }
+  async function runSession(local, nRemote) {
+    if (busy) return;
+    const n = LAYOUTS[state.layout].n;
+    if (local) send({ t: "start", n });
+    busy = true; $("shootBtn").disabled = true; buildUI();
+    for (const sd of ["A", "B"]) for (let i = 0; i < 4; i++) sideArr(sd)[i] = null;
+    render(); renderThumbs();
+    const total = nRemote || n;
+    for (let i = 0; i < total; i++) {
+      if (poseMode !== "off" && i < LAYOUTS[state.layout].n) { pickPose(i); $("poseRail").classList.add("live"); }
+      else overlay(poseCardHTML(i, total)); // no pose guide: a short "Strike a pose!" on the camera
+      if (poseMode !== "off") { const pi = poseInfo(i); setStatus(`Shot ${i + 1} of ${total}: ${pi.name}. ${pi.tip || "Get ready!"}`); }
+      else setStatus(`Shot ${i + 1} of ${total}: get ready.`);
+      await sleep(1800);
+      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); beep(k === 1 ? 990 : 660, k === 1 ? .18 : .12); await sleep(800); }
+      overlay("");
+      const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); shutter();
+      const mine = frameFrom(pipelineOn ? fxCanvas : localVideo(), facing !== "user");
+      if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
+      render(); renderThumbs();
+      const idx = i;
+      if (!solo) setTimeout(() => { // backup: if the partner's photo never arrives, use a frame from their live video
+        if (!sideArr(otherSide())[idx] && remoteVideo().srcObject) { const c = frameFrom(remoteVideo(), !partnerFront); if (c) { sideArr(otherSide())[idx] = toShot(c); render(); renderThumbs(); } }
+      }, 6000);
+      await sleep(900);
+    }
+    busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); $("poseRail").classList.remove("live"); buildUI();
+    setStatus("Done! Your print is ready. Save it as a picture, GIF or video, or tap Start to shoot again.");
+    const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop"); // the print develops like instant film
+    confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120);
+    st.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "nearest" });
+  }
+  /* ---------- Use my photos: build a strip from pictures you already have ---------- */
+  let photosMode = false, pickSlot = null;
+  const photosRaw = [null, null, null, null];
+  let faceLibPromise = null;
+  function faceLibReady() { // load face tracking once, for photos (no camera loop)
+    if (faceLib === "ready") return Promise.resolve(true);
+    if (!faceLibPromise) faceLibPromise = (async () => {
+      faceLib = "loading";
+      try {
+        if (typeof faceapi === "undefined") await loadScript("vendor/face-api/face-api.js");
+        await faceapi.nets.tinyFaceDetector.loadFromUri("vendor/face-api/models");
+        await faceapi.nets.faceLandmark68TinyNet.loadFromUri("vendor/face-api/models");
+        faceLib = "ready"; return true;
+      } catch (e) { faceLib = "failed"; return false; }
+    })();
+    return faceLibPromise;
+  }
+  function artReady(k) {
+    return Promise.all((NEEDS[k] || []).map((x) => new Promise((res) => {
+      const src = x.includes("/") ? x : sheet(x); img(src); const im = imgCache[src];
+      if (im.complete && im.naturalWidth) res(); else { im.addEventListener("load", res, { once: true }); im.addEventListener("error", res, { once: true }); }
+    })));
+  }
+  // Put the chosen sticker on every face found in a photo (a still frame of the animation).
+  async function bake(raw) {
+    if (fx === "none" || !raw) return raw;
+    if (!(await faceLibReady())) return raw;
+    await artReady(fx);
+    let res = [];
+    try { res = await faceapi.detectAllFaces(raw, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.5 })).withFaceLandmarks(true); } catch (e) {}
+    const c = document.createElement("canvas"); c.width = raw.width; c.height = raw.height; const g = c.getContext("2d"); g.drawImage(raw, 0, 0);
+    const keep = faces, now = performance.now();
+    faces = res.map((r) => Object.assign(faceGeometry(r.landmarks.positions), { seen: now, vx: 0, vy: 0 }));
+    drawStickers(g, 1.2); const found = faces.length; faces = keep;
+    c.dataset.faces = String(found);
+    return c;
+  }
+  async function placePhoto(i, raw) {
+    photosRaw[i] = raw;
+    const done = await bake(raw);
+    state.photos[i] = toShot(done); state.photos[i].faces = +(done.dataset && done.dataset.faces || 0);
+  }
+  async function rebakeAll() {
+    if (!photosRaw.some(Boolean)) return;
+    setStatus(fx === "none" ? "Stickers removed." : "Adding stickers to your photos…");
+    for (let i = 0; i < 4; i++) if (photosRaw[i]) await placePhoto(i, photosRaw[i]);
+    renderPick(); render(); renderThumbs();
+    if (fx !== "none") { const n = state.photos.reduce((a, p) => a + (p ? p.faces || 0 : 0), 0); setStatus(n ? `Stickers added to ${n} face${n === 1 ? "" : "s"}.` : "No faces found in your photos, so no stickers were added.", !n); }
+  }
+  async function readPhoto(file) {
+    let bmp;
+    try { bmp = await createImageBitmap(file, { imageOrientation: "from-image" }); }
+    catch (e) { bmp = await new Promise((res, rej) => { const u = URL.createObjectURL(file), im = new Image(); im.onload = () => { res(im); URL.revokeObjectURL(u); }; im.onerror = () => { rej(e); URL.revokeObjectURL(u); }; im.src = u; }); }
+    const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+    c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s); c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    if (bmp.close) bmp.close();
+    return c;
+  }
+  async function addPhotos(files, start) {
+    const list = Array.from(files || []).filter((f) => f.type.startsWith("image/"));
+    if (!list.length) { setStatus("That file isn't a photo. Try a JPG, PNG or HEIC picture.", true); return; }
+    const n = LAYOUTS[state.layout].n; setStatus("Adding your photos…");
+    let added = 0;
+    for (let k = 0; k < list.length && k < 4; k++) {
+      let slot = k === 0 && start != null ? start : state.photos.findIndex((p, j) => !p && j < n);
+      if (slot < 0) slot = (start ?? 0) + k < 4 ? (start ?? 0) + k : k;
+      try { await placePhoto(slot, await readPhoto(list[k])); added++; } catch (e) {}
+    }
+    renderPick(); render(); renderThumbs();
+    const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop");
+    const filled = state.photos.slice(0, n).filter(Boolean).length;
+    setStatus(added ? (filled >= n ? "Your strip is ready! Save it as a picture, GIF or video." : `Added ${added} photo${added === 1 ? "" : "s"}. ${n - filled} to go.`) : "Couldn't open that photo. Try saving it as JPG first.", !added);
+    if (filled >= n && added) confettiBurst();
+  }
+  function renderPick() {
+    const box = $("photoPick"), n = LAYOUTS[state.layout].n; box.innerHTML = ""; box.dataset.n = String(n);
+    for (let i = 0; i < n; i++) {
+      const p = state.photos[i], b = document.createElement("button"); b.type = "button"; b.className = "pick-slot" + (p ? " filled" : "");
+      b.setAttribute("aria-label", p ? `Replace photo ${i + 1}` : `Add photo ${i + 1}`);
+      b.innerHTML = p ? `<img src="${p.thumb}" alt=""><span class="n">${i + 1}</span>` : `<span class="plus" aria-hidden="true">+</span><span>Photo ${i + 1}</span>`;
+      b.addEventListener("click", () => { pickSlot = i; $("photoOne").value = ""; $("photoOne").click(); });
+      box.appendChild(b);
+    }
+  }
+  function startPhotos() {
+    solo = true; photosMode = true; mySide = "A"; state.mirror = false; state.usingSamples = false;
+    for (let i = 0; i < 4; i++) { state.photos[i] = null; photosRaw[i] = null; }
+    enterBooth();
+    document.body.classList.add("photos-mode"); $("stage").classList.add("photos");
+    $("modeTag").textContent = "Your photos";
+    ["micBtn", "flipBtn", "soundBtn"].forEach((id) => { $(id).hidden = true; });
+    $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false;
+    renderPick(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
+  }
+  $("photoMany").addEventListener("change", (e) => addPhotos(e.target.files, null));
+  $("photoOne").addEventListener("change", (e) => addPhotos(e.target.files, pickSlot));
+  $("photosBtn").addEventListener("click", startPhotos);
+  $("stage").addEventListener("dragover", (e) => { if (photosMode) e.preventDefault(); });
+  $("stage").addEventListener("drop", (e) => { if (!photosMode) return; e.preventDefault(); addPhotos(e.dataTransfer && e.dataTransfer.files, null); });
+
+  $("shootBtn").addEventListener("click", () => {
+    if (photosMode) { $("photoMany").value = ""; $("photoMany").click(); return; }
+    runSession(true);
+  });
+
+  /* ---------- Sounds: countdown beeps and a shutter click (Web Audio, no files) ---------- */
+  let soundOn = true, actx = null, soundsPlayed = 0;
+  try { soundOn = localStorage.getItem("fb-sound") !== "0"; } catch {}
+  function audio() {
+    if (!soundOn) return null;
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); return actx; } catch { return null; }
+  }
+  document.addEventListener("pointerdown", () => { if (soundOn) audio(); }, { once: true }); // phones only allow sound after a tap
+  function beep(freq = 880, dur = .12, vol = .18) {
+    const a = audio(); if (!a) return; soundsPlayed++;
+    const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02);
+  }
+  function shutter() {
+    const a = audio(); if (!a) return; soundsPlayed++;
+    const len = Math.floor(a.sampleRate * .14), buf = a.createBuffer(1, len, a.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+    const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    src.buffer = buf; f.type = "highpass"; f.frequency.value = 1400; g.gain.value = .55;
+    src.connect(f).connect(g).connect(a.destination); src.start();
+  }
+  function renderSoundBtn() {
+    const b = $("soundBtn"); b.classList.toggle("off", !soundOn);
+    b.setAttribute("aria-label", soundOn ? "Turn sounds off" : "Turn sounds on"); b.setAttribute("aria-pressed", String(soundOn));
+  }
+  $("soundBtn").addEventListener("click", () => {
+    soundOn = !soundOn; try { localStorage.setItem("fb-sound", soundOn ? "1" : "0"); } catch {}
+    renderSoundBtn(); if (soundOn) beep(990, .1); setStatus(soundOn ? "Sounds on." : "Sounds off.");
+  });
+  renderSoundBtn();
+
+  /* ---------- Motion: confetti when the print is ready ---------- */
+  const calm = () => window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function confettiBurst() {
+    if (calm()) return;
+    const c = document.createElement("canvas"); c.className = "confetti"; c.width = innerWidth; c.height = innerHeight; document.body.appendChild(c);
+    const g = c.getContext("2d"), cols = ["#1F5C4A", "#7CC8AC", "#F2B33D", "#E8536F", "#3A86FF", "#8338EC"], start = performance.now();
+    const bits = Array.from({ length: 140 }, (_, k) => ({ x: innerWidth / 2 + (Math.random() - .5) * 120, y: innerHeight * .55, vx: (Math.random() - .5) * 14, vy: -Math.random() * 16 - 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, w: 6 + Math.random() * 6, h: 3 + Math.random() * 4, c: cols[k % cols.length] }));
+    (function tick(now) {
+      const t = (now - start) / 1000; g.clearRect(0, 0, c.width, c.height);
+      bits.forEach((b) => { b.vy += .45; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.r += b.vr; g.save(); g.globalAlpha = Math.max(0, 1 - t / 2.6); g.translate(b.x, b.y); g.rotate(b.r); g.fillStyle = b.c; g.fillRect(-b.w / 2, -b.h / 2, b.w, b.h); g.restore(); });
+      if (t < 2.6) requestAnimationFrame(tick); else c.remove();
+    })(start);
+  }
+
+  /* ---------- Shot cards: one framed picture per shot, used by the GIF and the video ---------- */
+  function captionOn(g, text, cx, y, size, frame) {
+    if (!text) return;
+    g.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+    const tw = g.measureText(text).width;
+    if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha = .9; g.fillRect(cx - tw / 2 - size * .3, y - size * .5, tw + size * .6, size * .62); g.globalAlpha = 1; }
+    g.fillStyle = frame.ink; g.fillText(text, cx, y);
+  }
+  function shotsTaken() { const n = LAYOUTS[state.layout].n, out = []; for (let i = 0; i < n; i++) if (sideArr("A")[i] || sideArr("B")[i]) out.push(i); return out; }
+  function shotCard(i, W) {
+    const frame = currentFrame(), m = Math.round(W * .04), pw = W - m * 2, ph = Math.round(pw * 3 / 4), foot = Math.round(W * .13), H = m + ph + foot;
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+    paintBackground(g, W, H, frame, W / 600);
+    const sides = state.duo ? ["A", "B"] : ["A"], gap = state.duo ? Math.round(W * .012) : 0, w = (pw - gap * (sides.length - 1)) / sides.length;
+    sides.forEach((sd, k) => {
+      const p = sideArr(sd)[i], x = m + k * (w + gap);
+      if (p) g.drawImage(shotImage(p.canvas, w, ph), x, m);
+      else { g.fillStyle = frame.ink; g.globalAlpha = .08; g.fillRect(x, m, w, ph); g.globalAlpha = 1; }
+    });
+    captionOn(g, state.caption.trim(), W / 2, m + ph + foot * .62, Math.round(W * .05), frame);
+    return c;
+  }
+
+  /* ---------- GIF: the shots as a looping boomerang ---------- */
+  async function makeGif() {
+    const { GIFEncoder, quantize, applyPalette } = await import(new URL("vendor/gifenc/gifenc.esm.js", document.baseURI).href); // relative to the page, not this file
+    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
+    const cards = idx.map((i) => shotCard(i, 480));
+    const order = cards.length > 2 ? [...cards.keys(), ...[...cards.keys()].slice(1, -1).reverse()] : [...cards.keys()];
+    const enc = GIFEncoder();
+    for (const k of order) {
+      const c = cards[k], { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
+      const palette = quantize(data, 256), index = applyPalette(data, palette);
+      enc.writeFrame(index, c.width, c.height, { palette, delay: 600 });
+      await sleep(0); // keep the page responsive
+    }
+    enc.finish();
+    return new Blob([enc.bytes()], { type: "image/gif" });
+  }
+
+  /* ---------- Video reel: an animated story of your shots (9:16, ready for Reels and Stories) ---------- */
+  const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+  const easeBack = (x) => { x = Math.min(1, Math.max(0, x)); const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+  function reelMime() {
+    if (typeof MediaRecorder === "undefined") return "";
+    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
+  }
+  async function makeReel(progress) {
+    const mime = reelMime(); if (!mime) throw new Error("no-recorder");
+    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
+    const W = 720, H = 1280, frame = currentFrame();
+    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
+    const bg = document.createElement("canvas"); bg.width = W; bg.height = H + 200; paintBackground(bg.getContext("2d"), bg.width, bg.height, frame, 1.6);
+    const cards = idx.map((i) => shotCard(i, 640));
+    render(); const print = document.createElement("canvas"); print.width = canvas.width; print.height = canvas.height; print.getContext("2d").drawImage(canvas, 0, 0);
+    const INTRO = 1.4, SHOT = 1.7, OUTRO = 2.6, T = INTRO + SHOT * cards.length + OUTRO;
+    const cols = ["#1F5C4A", "#7CC8AC", "#F2B33D", "#E8536F", "#3A86FF"];
+    const bits = Array.from({ length: 90 }, (_, k) => ({ x: (k * 97) % W, d: (k * 37) % 100 / 100, s: 6 + (k % 5) * 2, c: cols[k % 5], sp: .7 + (k % 7) / 10 }));
+    const date = new Date().toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" });
+    function draw(t) {
+      g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
+      g.drawImage(bg, 0, -((t / T) * 200)); // slow upward drift
+      const cap = state.caption.trim();
+      if (t < INTRO + .3) { // title card: caption pops in, highlight wipes across
+        const a = ease((t - .1) / .6);
+        g.globalAlpha = Math.min(1, a) * (t > INTRO ? 1 - (t - INTRO) / .3 : 1);
+        g.save(); g.translate(W / 2, H * .46); g.scale(.8 + .2 * easeBack((t - .1) / .7), .8 + .2 * easeBack((t - .1) / .7));
+        g.font = `700 64px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; const tw = g.measureText(cap || "Flashbulb").width;
+        if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha *= .9; g.fillRect(-tw / 2 - 20, -34, (tw + 40) * ease((t - .4) / .5), 40); g.globalAlpha = Math.min(1, a); }
+        g.fillStyle = frame.ink; g.fillText(cap || "Flashbulb", 0, 0);
+        g.font = `600 26px "Urbanist", sans-serif`; g.globalAlpha *= .7; g.fillText(date, 0, 62); g.restore();
+      }
+      cards.forEach((card, k) => { // each shot slides in, slowly zooms, then flashes to the next
+        const t0 = INTRO + k * SHOT, lt = t - t0; if (lt < -.2 || lt > SHOT + .35) return;
+        const inX = (1 - ease(lt / .45)) * W, outX = lt > SHOT ? -ease((lt - SHOT) / .35) * W : 0, zoom = 1 + .06 * Math.min(1, Math.max(0, lt) / SHOT);
+        const cw = card.width * zoom, ch = card.height * zoom, x = (W - cw) / 2 + inX + outX, y = (H - ch) / 2 - 40, tilt = (k % 2 ? 1 : -1) * .025 * (1 - ease(lt / .6));
+        g.save(); g.translate(x + cw / 2, y + ch / 2); g.rotate(tilt);
+        g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 40; g.shadowOffsetY = 18; g.drawImage(card, -cw / 2, -ch / 2, cw, ch); g.restore();
+        g.font = `700 30px "Urbanist", sans-serif`; g.textAlign = "center"; g.fillStyle = frame.ink; g.globalAlpha = ease(lt / .5) * (lt > SHOT ? 0 : 1);
+        g.fillText(`SHOT ${idx[k] + 1}`, W / 2, y + ch + 70);
+        if (poseMode !== "off") { g.font = `700 40px "Comfortaa", "Century Gothic", sans-serif`; g.fillText(poseInfo(idx[k]).name, W / 2, y + ch + 120); }
+        g.globalAlpha = 1;
+        if (lt >= 0 && lt < .3) { g.fillStyle = "#fff"; g.globalAlpha = .85 * (1 - lt / .3); g.fillRect(0, 0, W, H); g.globalAlpha = 1; } // flash
+      });
+      const ot = t - (INTRO + SHOT * cards.length);
+      if (ot > -.2) { // the full print rises into place, confetti falls
+        const s = Math.min((W * .82) / print.width, (H * .78) / print.height), pw = print.width * s, ph = print.height * s;
+        const y = H - (H - ph) / 2 - ph - (1 - easeBack(ot / .9)) * -H * .9;
+        if (ot > .5) bits.forEach((b) => { // confetti behind the print
+          const yy = ((ot - .5) * 260 * b.sp + b.d * H) % (H + 40) - 20;
+          g.save(); g.translate(b.x + Math.sin(ot * 3 + b.d * 9) * 14, yy); g.rotate(ot * 4 + b.d * 6); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+        });
+        g.save(); g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 50; g.shadowOffsetY = 24; g.drawImage(print, (W - pw) / 2, y, pw, ph); g.restore();
+      }
+    }
+    const stream = c.captureStream(30), rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6 }), chunks = [];
+    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+    const done = new Promise((res) => { rec.onstop = res; });
+    draw(0); rec.start(250);
+    const start = performance.now();
+    await new Promise((res) => {
+      (function tick() {
+        const t = (performance.now() - start) / 1000; draw(Math.min(t, T)); progress && progress(Math.min(1, t / T));
+        if (t < T) requestAnimationFrame(tick); else res();
+      })();
+    });
+    await sleep(150); rec.stop(); await done; stream.getTracks().forEach((tr) => tr.stop());
+    return new Blob(chunks, { type: mime.split(";")[0] });
+  }
+
+  /* ---------- save / share ---------- */
+  function fileName() {
+    const d = new Date(), st = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return ((state.caption.trim() || "flashbulb").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flashbulb") + "-" + st + ".png";
+  }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // Save a file: on iPhone/iPad the share sheet is the way into Photos; elsewhere a normal download.
+  async function saveBlob(blob, name, what) {
+    if (isIOS && navigator.canShare) {
+      const file = new File([blob], name, { type: blob.type });
+      if (navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file] }); setStatus(`Tap "Save Image" or "Save Video" to keep your ${what} in Photos.`); return; }
+        catch (e) { if (e && e.name === "AbortError") return; }
+      }
+    }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); setStatus(`Saved your ${what}.`);
+  }
+  $("saveBtn").addEventListener("click", () => {
+    render();
+    canvas.toBlob((b) => {
+      if (!b) { setStatus("Couldn't make the image. Try again.", true); return; }
+      saveBlob(b, fileName(), "print");
+    }, "image/png");
+  });
+  function exportBusy(on) { ["saveBtn", "gifBtn", "reelBtn"].forEach((id) => { $(id).disabled = on; }); }
+  const baseName = () => fileName().replace(/\.png$/, "");
+  $("gifBtn").addEventListener("click", async () => {
+    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a GIF."); return; }
+    exportBusy(true); setStatus("Making your GIF…");
+    try { await saveBlob(await makeGif(), baseName() + ".gif", "GIF"); }
+    catch (e) { setStatus("Couldn't make the GIF. Try again.", true); }
+    exportBusy(false);
+  });
+  $("reelBtn").addEventListener("click", async () => {
+    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a video."); return; }
+    if (!reelMime()) { setStatus("This browser can't make videos. Try Chrome, or save a GIF instead.", true); return; }
+    exportBusy(true);
+    try {
+      const blob = await makeReel((p) => setStatus(`Making your video… ${Math.round(p * 100)}%`));
+      await saveBlob(blob, baseName() + (blob.type.includes("mp4") ? ".mp4" : ".webm"), "video");
+    } catch (e) { setStatus("Couldn't make the video. Try again, or save a GIF instead.", true); }
+    exportBusy(false);
+  });
+  $("shareImgBtn").addEventListener("click", () => {
+    render();
+    canvas.toBlob(async (b) => {
+      const file = new File([b], fileName(), { type: "image/png" });
+      try {
+        if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: state.caption });
+        else setStatus("Sharing pictures isn't supported here. Use Save print instead.");
+      } catch (e) { if (e && e.name !== "AbortError") setStatus("Couldn't share the print.", true); }
+    }, "image/png");
+  });
+  $("shareBtn").addEventListener("click", async () => {
+    const url = `${location.origin}${location.pathname}?join=${code}`;
+    try { if (navigator.share) { await navigator.share({ title: "Join my photo booth", text: `Join my Flashbulb booth. Code: ${code}`, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(url); setStatus("Link copied. Send it to your partner."); } catch { setStatus(`Send your partner this link: ${url}`); }
+  });
+
+  /* ---------- leave ---------- */
+  function stopAll() {
+    leaving = true;
+    try { if (call) call.close(); } catch {} try { if (conn) conn.close(); } catch {} try { if (peer) peer.destroy(); } catch {}
+    call = conn = peer = null;
+    if (localStream) localStream.getTracks().forEach((t) => t.stop()); localStream = null;
+    if (camStream) camStream.getTracks().forEach((t) => t.stop()); camStream = null;
+    cancelAnimationFrame(fxRaf);
+  }
+  $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
+  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, gif: () => makeGif(), reel: () => makeReel(), drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
+  window.addEventListener("pagehide", stopAll);
+
+  $("soloBtn").addEventListener("click", startSolo);
+  $("startBtn").addEventListener("click", startBooth);
+  $("joinBtn").addEventListener("click", joinBooth);
+  $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
+  if (params.get("mode") === "photos") startPhotos();
+  const pre = (params.get("join") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+  if (pre) { $("joinCode").value = pre; lobbyNote("Your partner invited you. Tap Join and allow your camera."); $("joinBtn").focus(); }
+  if (!window.isSecureContext) lobbyNote("Open this page over https (a secure link) so the camera can turn on.", true);
+  function onlineState() {
+    const off = !navigator.onLine;
+    ["startBtn", "joinBtn", "joinCode"].forEach((id) => { $(id).disabled = off; });
+    const n = $("togetherNote"); n.textContent = off ? "You're offline. Together needs internet, but Just me and Use my photos still work." : "Wi-Fi gives the smoothest video.";
+    n.classList.toggle("err", off);
+  }
+  window.addEventListener("online", onlineState); window.addEventListener("offline", onlineState); onlineState();
+  // keep the booth available offline after the first visit
+  if ("serviceWorker" in navigator && window.isSecureContext && !params.get("nosw")) navigator.serviceWorker.register("sw.js").catch(() => {});
+
+  buildUI(); buildFx(); render();
+  if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 42px "Comfortaa"'), document.fonts.load('500 16px "Urbanist"')]).then(render, () => {});
+})();
