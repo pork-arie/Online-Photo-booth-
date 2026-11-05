@@ -146,6 +146,14 @@ h1.display em { font-style: normal; color: var(--accent); }
 .rail-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); transform: scale(1.03); }
 .rail-card[aria-pressed="true"] svg { width: 72px; height: 64px; }
 .rail-card[aria-pressed="true"] small { color: var(--accent); }
+.rail-card svg.duo { width: 118px; height: 54px; }
+.rail-card[aria-pressed="true"] svg.duo { width: 124px; height: 57px; }
+.rail-card .emo.duo { font-size: 26px; letter-spacing: 4px; }
+.who2 { display: flex; justify-content: space-around; width: 100%; font: 600 9.5px var(--font-body); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.who2 i { font-style: normal; } .who2 i.me { color: var(--ink); }
+.pose-sel svg.duo { width: 72px; height: 33px; }
+.pose-sel .emo.duo { font-size: 22px; letter-spacing: 2px; }
+.pose-sel { grid-template-columns: auto minmax(0, 1fr); }
 .rail.live .rail-card[aria-pressed="true"] { animation: posePulse 1s ease-in-out infinite; }
 @keyframes posePulse { 50% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--accent) 28%, transparent); } }
 @media (max-width: 900px) {
@@ -157,6 +165,9 @@ h1.display em { font-style: normal; color: var(--accent); }
   .rail-card .emo { font-size: 24px; }
   .rail-card small { font-size: 8.5px; letter-spacing: .06em; }
   .rail-card b { font-size: 11px; }
+  .rail-card svg.duo, .rail-card[aria-pressed="true"] svg.duo { width: 82px; height: 38px; }
+  .rail-card .emo.duo { font-size: 18px; letter-spacing: 1px; }
+  .who2 { font-size: 8px; }
 }
 @media (prefers-reduced-motion: reduce) { .rail-card { transition: none; } .rail.live .rail-card[aria-pressed="true"] { animation: none; } }
 .side { display: grid; gap: 18px; min-width: 0; }
@@ -193,6 +204,7 @@ h1.display em { font-style: normal; color: var(--accent); }
 .print-box .row { width: 100%; }
 #strip { display: block; max-width: 100%; height: auto; width: 100%; box-shadow: 0 1px 2px var(--shadow), 0 24px 50px -22px var(--shadow); border-radius: 2px; }
 #strip.strip { width: min(100%, 300px); } #strip.polaroid { width: min(100%, 420px); }
+#strip.strip.wp { width: min(100%, 340px); }
 .print-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
 @media (max-width: 900px) {
@@ -313,6 +325,7 @@ h1.display em { font-style: normal; color: var(--accent); }
       </div>
       <div class="panel" id="tab-poses" role="tabpanel" aria-labelledby="tabBtn-poses" hidden>
         <div class="group"><h3>Pose guide</h3><div class="chips" id="poseModes"></div></div>
+        <div class="group" id="poseForGroup"><h3>Poses for</h3><div class="chips" id="poseFor"></div></div>
         <div class="group" id="poseListGroup">
           <div class="row"><h3>Coming up</h3><button class="linkbtn" id="newPoses" type="button">New poses</button></div>
           <div class="pose-list" id="poseList"></div>
@@ -361,8 +374,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
     layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true,
   };
-  let poseMode = "meme", posePrint = true;
-  const picks = { classic: [0, 1, 2, 3], meme: [0, 1, 2, 3] };
+  let poseMode = "meme", posePrint = true, poseFor = "solo"; // poseFor: one person ("solo") or two side by side ("duo")
+  const picks = { classic: [0, 1, 2, 3], meme: [0, 1, 2, 3], classicDuo: [0, 1, 2, 3], memeDuo: [0, 1, 2, 3] };
   const $ = (id) => document.getElementById(id);
   const canvas = $("strip"), ctx = canvas.getContext("2d");
   if (!ctx.roundRect) ctx.roundRect = function (x, y, w, h) { this.rect(x, y, w, h); };
@@ -371,16 +384,16 @@ h1.display em { font-style: normal; color: var(--accent); }
   function spec(layout) {
     if (withPoses()) {
       if (layout === "strip") {
-        const m = 36, gap = 18, pw = 528, ph = 396, col = 250, foot = 190, W = m + pw + gap + col + m;
+        const m = 36, gap = 18, pw = 528, ph = 396, col = poseFor === "duo" ? 340 : 250, foot = 190, W = m + pw + gap + col + m;
         return { W, H: m + 4 * ph + 3 * gap + foot, footY: m + 4 * ph + 3 * gap, foot, nameSize: 27,
           slots: [0, 1, 2, 3].map((i) => ({ x: m, y: m + i * (ph + gap), w: pw, h: ph, pose: { x: m + pw + gap, y: m + i * (ph + gap), w: col, h: ph } })) };
       }
       if (layout === "grid") {
-        const m = 40, gx = 24, gy = 18, pw = 400, ph = 300, inner = 14, col = 190, cell = pw + inner + col, foot = 180, W = m * 2 + cell * 2 + gx;
+        const m = 40, gx = 24, gy = 18, pw = 400, ph = 300, inner = 14, col = poseFor === "duo" ? 260 : 190, cell = pw + inner + col, foot = 180, W = m * 2 + cell * 2 + gx;
         return { W, H: m + 2 * ph + gy + foot, footY: m + 2 * ph + gy, foot, nameSize: 22,
           slots: [0, 1, 2, 3].map((i) => { const x = m + (i % 2) * (cell + gx), y = m + Math.floor(i / 2) * (ph + gy); return { x, y, w: pw, h: ph, pose: { x: x + pw + inner, y, w: col, h: ph } }; }) };
       }
-      const m = 44, pw = 712, gap = 22, col = 280, foot = 220, W = m + pw + gap + col + m;
+      const m = 44, pw = 712, gap = 22, col = poseFor === "duo" ? 380 : 280, foot = 220, W = m + pw + gap + col + m;
       return { W, H: m + pw + foot, footY: m + pw, foot, nameSize: 32, slots: [{ x: m, y: m, w: pw, h: pw, pose: { x: m + pw + gap, y: m, w: col, h: pw } }] };
     }
     if (layout === "strip") {
@@ -575,32 +588,33 @@ h1.display em { font-style: normal; color: var(--accent); }
   }
 
   const artCache = new Map();
-  function poseArt(idx, frame) {
-    const f = MEME[idx], key = f.img ? f.img : `${idx}|${frame.ink}|${frame.bg}`;
+  function poseArt(idx, frame, duo) {
+    const f = duo ? MEME_DUO[idx] : MEME[idx], key = f.img ? f.img : `${duo ? "d" : "s"}${idx}|${frame.ink}|${frame.bg}`;
     let e = artCache.get(key);
     if (!e) {
       const im = new Image(); e = { im, ready: false }; artCache.set(key, e);
       im.onload = () => { e.ready = true; render(); };
-      im.src = f.img || ("data:image/svg+xml;charset=utf-8," + encodeURIComponent(figureSVG(f, frame.ink, frame.bg)));
+      im.src = f.img || ("data:image/svg+xml;charset=utf-8," + encodeURIComponent(duo ? duoSVG(f, frame.ink, frame.ink, frame.bg) : figureSVG(f, frame.ink, frame.bg)));
     }
     return e.ready ? e.im : null;
   }
   function drawPose(r, i, frame, nameSize) {
-    const idx = picks[poseMode][i]; if (idx == null) return;
-    const name = poseMode === "meme" ? MEME[idx].name : CLASSIC[idx][1];
+    const key = packKey(), idx = picks[key][i]; if (idx == null) return;
+    const duo = poseFor === "duo", item = packList(key)[idx], name = poseMode === "meme" ? item.name : item[duo ? 2 : 1];
     ctx.save();
     if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .9; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill(); }
     ctx.fillStyle = frame.ink; ctx.globalAlpha = .05;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill();
     ctx.globalAlpha = 1;
-    const pad = 14, textH = nameSize * 2.6, box = Math.min(r.w - pad * 2, r.h - textH - pad);
-    const ax = r.x + (r.w - box) / 2, ay = r.y + pad + (r.h - textH - pad - box) / 2;
+    const pad = 14, textH = nameSize * 2.6, aw = r.w - pad * 2, ah = r.h - textH - pad;
+    const cx = r.x + r.w / 2, cy = r.y + pad + ah / 2;
     if (poseMode === "meme") {
-      const im = poseArt(idx, frame);
-      if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min(box / iw, box / ih); ctx.drawImage(im, ax + (box - iw * s) / 2, ay + (box - ih * s) / 2, iw * s, ih * s); }
+      const im = poseArt(idx, frame, duo);
+      if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min(aw / iw, ah / ih); ctx.drawImage(im, cx - iw * s / 2, cy - ih * s / 2, iw * s, ih * s); }
     } else {
-      ctx.font = `${Math.round(box * .62)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(CLASSIC[idx][0], ax + box / 2, ay + box / 2);
+      const text = duo ? item[0] + item[1] : item[0], size = duo ? Math.min(ah * .55, aw * .38) : Math.min(ah, aw) * .62;
+      ctx.font = `${Math.round(size)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
+      ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, cx, cy);
     }
     ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
     ctx.globalAlpha = .55; ctx.font = `600 ${Math.round(nameSize * .5)}px "Urbanist", sans-serif`;
@@ -693,7 +707,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   ];
   // To use a picture instead of a drawing later, add img: "poses/flex.png" (or .gif) to a MEME entry.
   // GIFs print as their first frame, because the saved print is a still PNG.
-  function figureSVG(f, ink = "currentColor", bg = "var(--surface)") {
+  function figureBody(f, ink, bg) {
     const arm = (pts) => `M${pts.map((q) => q.join(" ")).join(" L")}`;
     const mouths = {
       smile: '<path d="M44 33 Q50 38 56 33"/>', smirk: '<path d="M45 34 Q51 36 56 32"/>',
@@ -703,7 +717,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     const eyes = f.eyes === "wide"
       ? `<circle cx="45" cy="24" r="2.4"/><circle cx="55" cy="24" r="2.4"/><circle cx="45" cy="24" r=".8" fill="${ink}"/><circle cx="55" cy="24" r=".8" fill="${ink}"/>`
       : `<circle cx="45" cy="25" r="1.1" fill="${ink}"/><circle cx="55" cy="25" r="1.1" fill="${ink}"/>`;
-    let out = `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="92" viewBox="0 8 100 92" aria-hidden="true" fill="none" stroke="${ink}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">`;
+    let out = `<g stroke="${ink}">`;
     out += `<path d="M44 40 L44 45 Q36 46 33 49 Q28 70 30 100 H70 Q72 70 67 49 Q64 46 56 45 L56 40" fill="${bg}"/>`;
     out += `<ellipse cx="50" cy="26" rx="11" ry="13.5" fill="${bg}"/>${eyes}${mouths[f.mouth] || mouths.smile}`;
     if (f.extra === "shield") out += `<rect x="9" y="47" width="9" height="15" rx="2" transform="rotate(-12 13 54)" fill="${bg}"/>`;
@@ -714,8 +728,60 @@ h1.display em { font-style: normal; color: var(--accent); }
     });
     if (f.extra === "heart") out += '<path d="M50 66 C42 60 44 54 50 58 C56 54 58 60 50 66Z" fill="#E0607E" stroke="none"/>';
     if (f.extra === "point") out += '<path d="M53 64 L45 62"/>';
+    if (f.shades) out += `<rect x="40" y="21" width="9" height="6" rx="2" fill="${ink}"/><rect x="51" y="21" width="9" height="6" rx="2" fill="${ink}"/><path d="M49 23 H51"/>`;
+    (f.vsign || []).forEach((k) => { const h = f.arms[k][2]; out += `<path d="M${h[0] - 1.5} ${h[1] - 2} L${h[0] - 4} ${h[1] - 11} M${h[0] + 1.5} ${h[1] - 2} L${h[0] + 4} ${h[1] - 11}"/>`; });
+    (f.fingers || []).forEach(([k, dx, dy]) => { const h = f.arms[k][2]; out += `<path d="M${h[0]} ${h[1]} L${h[0] + dx} ${h[1] + dy}"/>`; });
+    return out + "</g>";
+  }
+  const SVG_OPEN = (w, cls) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="92" viewBox="0 8 ${w} 92"${cls ? ` class="${cls}"` : ""} aria-hidden="true" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">`;
+  function figureSVG(f, ink = "currentColor", bg = "var(--surface)") { return SVG_OPEN(100) + figureBody(f, ink, bg) + "</svg>"; }
+  // Two people side by side: left figure is the left camera, right figure the right camera.
+  function duoSVG(p, inkL = "currentColor", inkR = "currentColor", bg = "var(--surface)") {
+    let out = SVG_OPEN(200, "duo") + figureBody(p.L, inkL, bg) + `<g transform="translate(100 0)">${figureBody(p.R, inkR, bg)}</g>`;
+    if (p.center === "heart") out += '<path d="M100 58 C86 48 90 36 100 44 C110 36 114 48 100 58Z" fill="#E0607E" stroke="none"/>';
+    if (p.center === "kiss") out += '<path d="M100 40 C93 35 95 29 100 33 C105 29 107 35 100 40Z" fill="#E0607E" stroke="none"/><path d="M84 38 L91 37 M84 43 L90 44" stroke="#E0607E"/>';
+    if (p.center === "spark") out += `<path d="M100 8 V14 M92 11 L95 16 M108 11 L105 16" stroke="${inkL}"/>`;
+    if (p.center === "think") out += '<circle cx="100" cy="20" r="6" fill="#FFD166" stroke="none"/><path d="M97 27 H103 M98 30 H102" stroke="#C99A2E"/>';
+    if (p.center === "whisper") out += `<path d="M84 30 Q90 27 94 30 M86 35 Q92 33 96 36" stroke="${inkL}"/>`;
     return out + "</svg>";
   }
+  // Duo poses: L is the person on the left, R the person on the right. Arms are [shoulder, elbow, hand] in each figure's own 100×100 box.
+  const DOWN_L = [[34, 50], [29, 74], [33, 96]], DOWN_R = [[66, 50], [71, 74], [67, 96]];
+  const MEME_DUO = [
+    { name: "Big heart", tip: "Each make half a heart. Together it's whole!", center: "heart",
+      L: { mouth: "smile", arms: [DOWN_L, [[66, 50], [86, 30], [99, 42]]] }, R: { mouth: "smile", arms: [[[34, 50], [14, 30], [1, 42]], DOWN_R] } },
+    { name: "Point at each other", tip: "Who's the real one? Point at your partner.",
+      L: { mouth: "open", eyes: "wide", arms: [DOWN_L, [[66, 50], [82, 52], [97, 50]]], fingers: [[1, 4, 0]] }, R: { mouth: "open", eyes: "wide", arms: [[[34, 50], [18, 52], [3, 50]], DOWN_R], fingers: [[0, -4, 0]] } },
+    { name: "High five", tip: "Reach to the middle like you're slapping hands.", center: "spark",
+      L: { mouth: "open", arms: [DOWN_L, [[66, 50], [84, 40], [95, 22]]], palm: 1 }, R: { mouth: "open", arms: [[[34, 50], [16, 40], [5, 22]], DOWN_R], palm: 0 } },
+    { name: "Too cool", tip: "Sunglasses face, arms crossed, no smiling.",
+      L: { mouth: "flat", shades: true, arms: [[[34, 50], [38, 70], [62, 60]], [[66, 50], [62, 70], [38, 60]]] }, R: { mouth: "flat", shades: true, arms: [[[34, 50], [38, 70], [62, 60]], [[66, 50], [62, 70], [38, 60]]] } },
+    { name: "Both shocked", tip: "Hands on cheeks, mouths wide open.",
+      L: { mouth: "open", eyes: "wide", arms: [[[34, 50], [28, 46], [40, 36]], [[66, 50], [72, 46], [60, 36]]] }, R: { mouth: "open", eyes: "wide", arms: [[[34, 50], [28, 46], [40, 36]], [[66, 50], [72, 46], [60, 36]]] } },
+    { name: "Blow & catch", tip: "One blows a kiss, the other catches it.", center: "kiss",
+      L: { mouth: "smirk", arms: [DOWN_L, [[66, 50], [72, 64], [57, 35]]] }, R: { mouth: "open", eyes: "wide", arms: [[[34, 50], [16, 46], [4, 38]], DOWN_R], palm: 0 } },
+    { name: "Flex buddies", tip: "Both arms up. Who's stronger?",
+      L: { mouth: "open", arms: [[[34, 50], [16, 47], [21, 30]], [[66, 50], [84, 47], [79, 30]]] }, R: { mouth: "open", arms: [[[34, 50], [16, 47], [21, 30]], [[66, 50], [84, 47], [79, 30]]] } },
+    { name: "Peace twins", tip: "Peace sign on the inside hand. Same smile.",
+      L: { mouth: "smile", arms: [DOWN_L, [[66, 50], [80, 42], [82, 26]]], vsign: [1] }, R: { mouth: "smile", arms: [[[34, 50], [20, 42], [18, 26]], DOWN_R], vsign: [0] } },
+    { name: "Time out vs Please", tip: "One makes a T, the other begs.",
+      L: { mouth: "flat", arms: [[[34, 50], [30, 60], [67, 58]], [[66, 50], [56, 86], [51, 61]]] }, R: { mouth: "sad", arms: [[[34, 50], [30, 72], [49, 54]], [[66, 50], [70, 72], [51, 54]]] } },
+    { name: "Fly away", tip: "Arms out wide, like you're flying together.",
+      L: { mouth: "open", arms: [[[34, 50], [18, 51], [3, 53]], [[66, 50], [82, 49], [97, 47]]] }, R: { mouth: "open", arms: [[[34, 50], [18, 49], [3, 47]], [[66, 50], [82, 51], [97, 53]]] } },
+    { name: "Thinking twins", tip: "Tap your temples. Big idea incoming.", center: "think",
+      L: { mouth: "smirk", arms: [DOWN_L, [[66, 50], [80, 46], [63, 24]]] }, R: { mouth: "smirk", arms: [[[34, 50], [20, 46], [37, 24]], DOWN_R] } },
+    { name: "Secret", tip: "One whispers a secret, the other listens.", center: "whisper",
+      L: { mouth: "smirk", arms: [DOWN_L, [[66, 50], [78, 54], [62, 35]]] }, R: { mouth: "open", eyes: "wide", arms: [[[34, 50], [24, 42], [37, 27]], DOWN_R] } },
+  ];
+  const CLASSIC_DUO = [
+    ["👉", "👈", "Point at each other", "Both point to the middle."], ["🫶", "🫶", "Big heart", "Both make heart hands."],
+    ["🙌", "🙌", "High five", "Reach to the middle."], ["😘", "🥰", "Kiss & blush", "One blows a kiss, the other blushes."],
+    ["😱", "😱", "Both shocked", "Hands on cheeks!"], ["✌️", "✌️", "Peace twins", "Same pose, same face."],
+    ["💪", "💪", "Flex buddies", "Show those arms."], ["😎", "😎", "Too cool", "Arms crossed, no smiling."],
+    ["🤫", "👂", "Secret", "One whispers, one listens."], ["🤔", "💡", "Big idea", "One thinks, the other gets it."],
+  ];
+  const packKey = () => poseMode + (poseFor === "duo" ? "Duo" : "");
+  const packList = (key = packKey()) => ({ classic: CLASSIC, meme: MEME, classicDuo: CLASSIC_DUO, memeDuo: MEME_DUO })[key] || MEME;
 
   /* ---------- small helpers ---------- */
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -723,7 +789,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   function setStatus(msg, err) { const s = $("status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
   function setPill(mode, text) { const p = $("pill"); p.hidden = false; p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
   function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
-  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length);
+  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length);
 
   /* ---------- settings UI ---------- */
   function chip(label, pressed, onClick, swatch) {
@@ -743,6 +809,9 @@ h1.display em { font-style: normal; color: var(--accent); }
     Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) se.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
     const pm = $("poseModes"); pm.innerHTML = "";
     [["off", "Off"], ["classic", "Classic"], ["meme", "Meme"]].forEach(([k, l]) => pm.appendChild(chip(l, poseMode === k, () => { poseMode = k; changed(); })));
+    const pf = $("poseFor"); pf.innerHTML = "";
+    [["solo", "Solo · 1 person"], ["duo", "Duo · 2 people"]].forEach(([k, l]) => pf.appendChild(chip(l, poseFor === k, () => { poseFor = k; selPose = 0; changed(); })));
+    $("poseForGroup").hidden = poseMode === "off";
     $("poseListGroup").hidden = poseMode === "off";
     renderPoseList(); renderRail();
     $("posePrint").checked = posePrint; $("capHl").checked = state.capHl; $("showDate").checked = state.showDate;
@@ -753,13 +822,20 @@ h1.display em { font-style: normal; color: var(--accent); }
   }
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
   let selPose = 0; // the pose shown beside the camera
-  function poseInfo(i) {
-    if (poseMode === "meme") { const f = MEME[picks.meme[i]]; return { art: figureSVG(f), name: f.name }; }
-    const c = CLASSIC[picks.classic[i]]; return { art: `<span class="emo" aria-hidden="true">${c[0]}</span>`, name: c[1] };
+  // inks: in Together your figure is drawn in black, your partner's in green
+  function poseInfo(i, colored) {
+    const key = packKey(), item = packList(key)[picks[key][i]];
+    if (poseFor === "duo") {
+      const mine = "currentColor", theirs = colored && !solo ? "var(--accent)" : "currentColor";
+      if (poseMode === "meme") return { art: duoSVG(item, mySide === "A" ? mine : theirs, mySide === "A" ? theirs : mine), name: item.name, tip: item.tip, duo: true };
+      return { art: `<span class="emo duo" aria-hidden="true">${item[0]}${item[1]}</span>`, name: item[2], tip: item[3], duo: true };
+    }
+    if (poseMode === "meme") return { art: figureSVG(item), name: item.name, tip: item.tip };
+    return { art: `<span class="emo" aria-hidden="true">${item[0]}</span>`, name: item[1], tip: item[2] };
   }
   function pickPose(i) { selPose = i; renderRail(); renderPoseList(); }
   function swapPose(i) {
-    const list = picks[poseMode], len = poseMode === "meme" ? MEME.length : CLASSIC.length;
+    const list = picks[packKey()], len = packList().length;
     for (let k = 1; k <= len; k++) { const c = (list[i] + k) % len; if (!list.includes(c)) { list[i] = c; break; } }
     selPose = i; changed();
   }
@@ -767,7 +843,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     const n = LAYOUTS[state.layout].n, box = $("poseList"); box.innerHTML = "";
     if (poseMode === "off") return;
     for (let i = 0; i < n; i++) {
-      const { art, name } = poseInfo(i);
+      const { art, name } = poseInfo(i, true);
       const d = document.createElement("div"); d.className = "pose-item" + (i === selPose ? " sel" : "");
       const b = document.createElement("button"); b.type = "button"; b.className = "pose-sel";
       b.innerHTML = `${art}<span><small>Shot ${i + 1}</small><b></b></span>`; b.querySelector("b").textContent = name;
@@ -786,9 +862,10 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (selPose >= n) selPose = 0;
     rail.innerHTML = "";
     for (let i = 0; i < n; i++) {
-      const { art, name } = poseInfo(i);
-      const b = document.createElement("button"); b.type = "button"; b.className = "rail-card"; b.setAttribute("aria-pressed", String(i === selPose));
-      b.innerHTML = `${art}<small>Shot ${i + 1}</small><b></b>`; b.querySelector("b").textContent = name;
+      const { art, name, duo } = poseInfo(i, true);
+      const b = document.createElement("button"); b.type = "button"; b.className = "rail-card" + (duo ? " duo" : ""); b.setAttribute("aria-pressed", String(i === selPose));
+      const who = !duo ? "" : solo ? `<span class="who2"><i>Left</i><i>Right</i></span>` : `<span class="who2"><i${mySide === "A" ? ' class="me"' : ""}>${mySide === "A" ? "You" : "Partner"}</i><i${mySide === "B" ? ' class="me"' : ""}>${mySide === "B" ? "You" : "Partner"}</i></span>`;
+      b.innerHTML = `${art}${who}<small>Shot ${i + 1}</small><b></b>`; b.querySelector("b").textContent = name;
       b.setAttribute("aria-label", `Shot ${i + 1}: ${name}`);
       b.addEventListener("click", () => pickPose(i));
       rail.appendChild(b);
@@ -814,7 +891,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
   $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
   $("posePrint").addEventListener("change", (e) => { posePrint = e.target.checked; changed(); });
-  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
+  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
 
   function renderThumbs() {
     const n = LAYOUTS[state.layout].n, box = $("thumbs"); box.innerHTML = "";
@@ -1168,7 +1245,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   }
   function enterBooth() {
     $("lobby").hidden = true; $("booth").hidden = false;
-    state.duo = !solo;
+    state.duo = !solo; poseFor = solo ? "solo" : "duo";
     $("stage").classList.toggle("solo", solo);
     $("modeTag").textContent = solo ? "Just me" : "Together";
     $("codeWrap").hidden = solo; $("micBtn").hidden = solo;
@@ -1258,7 +1335,8 @@ h1.display em { font-style: normal; color: var(--accent); }
   /* ---------- settings sync ---------- */
   function settingsPayload() {
     return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, caption: state.caption,
-      capHl: state.capHl, showDate: state.showDate, poseMode, posePrint, picks: { classic: picks.classic.slice(), meme: picks.meme.slice() } };
+      capHl: state.capHl, showDate: state.showDate, poseMode, posePrint, poseFor,
+      picks: { classic: picks.classic.slice(), meme: picks.meme.slice(), classicDuo: picks.classicDuo.slice(), memeDuo: picks.memeDuo.slice() } };
   }
   function sendSettings() { send({ t: "settings", s: settingsPayload() }); }
   let capTimer; function sendSettingsSoon() { clearTimeout(capTimer); capTimer = setTimeout(sendSettings, 350); }
@@ -1274,7 +1352,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (typeof d.showDate === "boolean") state.showDate = d.showDate;
     if (["off", "classic", "meme"].includes(d.poseMode)) poseMode = d.poseMode;
     if (typeof d.posePrint === "boolean") posePrint = d.posePrint;
-    if (d.picks) { if (okPicks(d.picks.classic, CLASSIC.length)) picks.classic = d.picks.classic.slice(); if (okPicks(d.picks.meme, MEME.length)) picks.meme = d.picks.meme.slice(); }
+    if (d.poseFor === "solo" || d.poseFor === "duo") poseFor = d.poseFor;
+    if (d.picks) [["classic", CLASSIC], ["meme", MEME], ["classicDuo", CLASSIC_DUO], ["memeDuo", MEME_DUO]].forEach(([k, list]) => { if (okPicks(d.picks[k], list.length)) picks[k] = d.picks[k].slice(); });
     changed(true);
   }
 
@@ -1330,7 +1409,8 @@ h1.display em { font-style: normal; color: var(--accent); }
     for (let i = 0; i < total; i++) {
       if (poseMode !== "off" && i < LAYOUTS[state.layout].n) { pickPose(i); $("poseRail").classList.add("live"); }
       else overlay(poseCardHTML(i, total)); // no pose guide: a short "Strike a pose!" on the camera
-      setStatus(poseMode !== "off" ? `Shot ${i + 1} of ${total}: ${poseInfo(i).name}. Get ready!` : `Shot ${i + 1} of ${total}: get ready.`);
+      if (poseMode !== "off") { const pi = poseInfo(i); setStatus(`Shot ${i + 1} of ${total}: ${pi.name}. ${pi.tip || "Get ready!"}`); }
+      else setStatus(`Shot ${i + 1} of ${total}: get ready.`);
       await sleep(1800);
       for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); await sleep(800); }
       overlay("");

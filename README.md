@@ -22,6 +22,8 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 
 ![Together: two cameras and the shared print](docs/live-booth.png)
 
+![Duo poses printed beside each pair of photos](docs/duo-print.png)
+
 ### Just me
 
 ![Just me: one camera and your print](docs/just-me.png)
@@ -50,6 +52,7 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
+- **Solo and Duo poses:** Solo poses have one figure. Duo poses have two figures side by side (Big heart, High five, Point at each other, Blow & catch, Secret and more), so in Together each person copies their half. Beside the camera your figure is black and your partner's is green, labeled You and Partner. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
 - **Poses beside the camera:** the poses for your shots sit in a column next to the camera, on phones too. Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
 - **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption

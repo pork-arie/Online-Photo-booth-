@@ -113,6 +113,16 @@ async function makeFaceVideo(browser) {
   check('Season syncs partner -> host', (await A.locator('#seasons [aria-pressed=true]').textContent()).includes('Pasko'));
   check('Film + caption sync host -> partner', (await B.locator('#films [aria-pressed=true]').textContent()) === 'Silver' && (await B.inputValue('#caption')) === 'Miss you, love');
   await A.locator('#films .chip', { hasText: 'Natural' }).click(); await A.waitForTimeout(400);
+  // duo poses: two figures, labelled so each person knows their half
+  check('Together starts with Duo poses', (await A.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Duo') && (await A.locator('#poseRail .rail-card.duo svg.duo').count()) === 4);
+  check('Host sees You on the left, Partner on the right', (await A.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'You|Partner');
+  check('Partner sees Partner on the left, You on the right', (await B.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'Partner|You');
+  check('Both see the same duo poses', (await A.locator('#poseRail .rail-card b').allTextContents()).join() === (await B.locator('#poseRail .rail-card b').allTextContents()).join());
+  await A.locator('#poseRail').screenshot({ path: OUT + '/duo-rail-host.png' });
+  await A.click('#tabBtn-poses'); await A.locator('#poseFor .chip', { hasText: 'Solo' }).click(); await A.waitForTimeout(800);
+  check('Switching to Solo poses syncs to the partner', (await B.locator('#poseRail .rail-card.duo').count()) === 0 && (await B.locator('#poseRail .rail-card').count()) === 4);
+  await A.locator('#poseFor .chip', { hasText: 'Duo' }).click(); await A.click('#tabBtn-look'); await A.waitForTimeout(800);
+  check('Back to Duo on both', (await B.locator('#poseRail .rail-card.duo').count()) === 4);
 
   // synced 4-shot session started by the partner
   await B.click('#shootBtn');
@@ -169,7 +179,12 @@ async function makeFaceVideo(browser) {
   check('Just me opens the camera without a partner', (await J.textContent('#modeTag')) === 'Just me' && await J.evaluate(() => document.getElementById('stage').classList.contains('solo') && document.getElementById('vidA').videoWidth > 0));
   check('Just me hides code, share and mic', !(await J.isVisible('#codeWrap')) && !(await J.isVisible('#micBtn')) && !(await J.isVisible('#pill')));
   check('Just me: Start is ready right away', !(await J.isDisabled('#shootBtn')));
+  check('Just me starts with Solo poses', (await J.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Solo') && (await J.locator('#poseRail .rail-card.duo').count()) === 0);
   await J.click('#tabBtn-poses');
+  await J.locator('#poseFor .chip', { hasText: 'Duo' }).click();
+  check('Just me can switch to Duo poses (two people in one camera)', (await J.locator('#poseRail .rail-card.duo').count()) === 4 && (await J.locator('#poseRail .who2 i').first().textContent()) === 'Left');
+  await J.locator('#strip').screenshot({ path: OUT + '/duo-print-solo-camera.png' });
+  await J.locator('#poseFor .chip', { hasText: 'Solo' }).click();
   check('Poses tab lists the upcoming poses', (await J.locator('#poseList .pose-item').count()) === 4);
   const firstPose = await J.locator('#poseList .pose-item b').first().textContent();
   await J.locator('#poseList .pose-swap').first().click();
