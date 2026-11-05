@@ -2,6 +2,8 @@
 
 A live photo booth for two people who are far apart. You see and hear each other, get the same pose and the same 3‑2‑1 countdown, and end up with one shared photo strip.
 
+Shooting alone? The **solo booth** at [`/solo/`](solo/) has the same looks for one person.
+
 ![Two live cameras side by side during the countdown](docs/live-countdown.png)
 
 ## How it works
@@ -46,12 +48,30 @@ Any other static host works too, for example Netlify or Cloudflare Pages. The wh
 
 | Path | What it is |
 |---|---|
-| `index.html` | The live booth (HTML, CSS and JavaScript in one file) |
-| `tests/` | End-to-end test: two browsers with fake cameras shoot a strip together |
-| `claude-booth/flashbulb-booth.html` | The original single-player booth built as a Claude artifact (home page, Together mode through Claude's shared storage). It runs inside Claude, not as a standalone page. |
+| `index.html` | The live booth for two (HTML, CSS and JavaScript in one file) |
+| `solo/index.html` | The solo booth: a home page plus a one-person booth with the same layouts, looks, seasons and poses. Its Duo switch lets you add a partner's photos yourself. |
+| `tests/` | End-to-end test for both booths |
 | `docs/` | Screenshots used in this README |
 
-## Run the tests
+## Test it
+
+### On your phones (after GitHub Pages is on)
+
+1. On phone 1, open `https://pork-arie.github.io/Online-Photo-booth-/`, tap **Start a booth** and allow the camera and microphone.
+2. Tap **Share link** and send it to phone 2. On phone 2, open the link and tap **Join**.
+3. Check that each phone shows both cameras, with you on the left on the host phone, and that you can hear each other.
+4. Change the film or season on one phone. It should change on the other.
+5. Tap **Start 4 shots**. Both phones should show the same pose and countdown, and after 4 flashes both should show the same print.
+6. Tap **Save print** and check the picture is in your downloads or photos.
+7. Open `/solo/` and take a strip on your own.
+
+If the cameras don't connect, try both phones on Wi-Fi first (see "Mobile data" above).
+
+### On one computer
+
+Open the booth link in a normal window and in a private (incognito) window, then start in one and join from the other. Both windows use the same camera, so you'll see yourself twice, but it shows that everything works.
+
+### Automated test
 
 ```bash
 cd tests
@@ -70,5 +90,6 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that saving downloads the print
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
+- in the solo booth: the home page, adding a photo, saving, and the links between the two booths
 
-Screenshots are saved to `tests/test-output/`.
+It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

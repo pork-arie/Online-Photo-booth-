@@ -1,5 +1,10 @@
-<title>Flashbulb Booth</title>
-<meta name="claude:viewport-fit-sides" content="cover">
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flashbulb Solo Booth</title>
+<meta name="description" content="Take a four-shot photo strip with film looks, season themes and meme poses.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Urbanist:wght@400;500;600;700&display=swap">
@@ -311,13 +316,17 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .slot.locked { cursor: default; }
 
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+html, body { margin: 0; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 </style>
+</head>
+<body>
 
 <!-- ================= HOME ================= -->
 <div id="homeView">
   <nav class="nav"><div class="wrap nav-in">
     <a class="mark" href="#home">Flashbulb <i>booth</i><span class="dot" aria-hidden="true"></span></a>
-    <div class="nav-links"><a class="quiet" href="#booth">Layouts &amp; looks</a><a class="btn solid" href="#booth">Open the booth</a></div>
+    <div class="nav-links"><a class="quiet" href="../">Live booth for two</a><a class="btn solid" href="#booth">Open the booth</a></div>
   </div></nav>
 
   <header class="wrap hero">
@@ -381,7 +390,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 <div id="boothView" hidden>
   <nav class="nav"><div class="wrap nav-in">
     <a class="mark back" href="#home">Flashbulb <i>booth</i><span class="dot" aria-hidden="true"></span></a>
-    <div class="nav-links"><a class="quiet" href="#home">← Home</a></div>
+    <div class="nav-links"><a class="quiet" href="../">Live for two</a><a class="quiet" href="#home">← Home</a></div>
   </div></nav>
 
   <main class="wrap studio">
@@ -1389,7 +1398,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   async function initTogether() {
     const note = $("togetherNote");
     const off = (msg) => { note.textContent = msg; $("startSession").disabled = true; $("joinSession").disabled = true; $("joinCode").disabled = true; };
-    if (!window.claude || !window.claude.use) { off("Live sessions work when this page is open in Claude. You can still add your partner's photos yourself."); return; }
+    if (!window.claude || !window.claude.use) {
+      $("togetherOff").querySelectorAll(".shoot, .hint:not(#togetherNote)").forEach((el) => { el.hidden = true; });
+      note.innerHTML = 'To see each other live while you pose, use the <a href="../">live booth for two</a>. You can still add your partner\'s photos yourself above.';
+      return;
+    }
     off("Connecting…");
     try { db = await claude.use("db"); userCap = await claude.use("user"); } catch { db = null; }
     if (!db) { off("Sign in to Claude to shoot together live. You can still add your partner's photos yourself."); return; }
@@ -1415,7 +1428,11 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
     if (!blob) { setStatus("Couldn't make the image. Try again.", true); return; }
     const d = new Date(), stamp = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     const name = (state.caption.trim() || "photobooth").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "photobooth";
-    if (!downloads) { setStatus("Saving isn't available in this view. Right-click or long-press the print to save the image."); return; }
+    if (!downloads) {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${name}-${stamp}.png`;
+      document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      setStatus("Saved your print."); return;
+    }
     try { const r = await downloads.save({ filename: `${name}-${stamp}.png`, data: blob }); setStatus(r.status === "saved" ? "Saved your print." : ""); }
     catch (err) {
       const code = err && err.code;
@@ -1457,3 +1474,5 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   if (window.claude && window.claude.use) window.claude.use("downloads").then((d) => { downloads = d; }, () => {});
 })();
 </script>
+</body>
+</html>

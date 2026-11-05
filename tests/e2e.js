@@ -11,9 +11,10 @@ fs.mkdirSync(OUT, { recursive: true });
 // Serve the repo root on :8080 (the camera needs localhost or https).
 const web = http.createServer((req, res) => {
   const file = path.join(ROOT, decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html');
-  if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); res.end(); return; }
-  res.writeHead(200, { 'Content-Type': file.endsWith('.html') ? 'text/html' : 'application/octet-stream' });
-  fs.createReadStream(file).pipe(res);
+  let f = file; if (fs.existsSync(f) && fs.statSync(f).isDirectory()) f = path.join(f, 'index.html');
+  if (!f.startsWith(ROOT) || !fs.existsSync(f)) { res.writeHead(404); res.end(); return; }
+  res.writeHead(200, { 'Content-Type': f.endsWith('.html') ? 'text/html' : 'application/octet-stream' });
+  fs.createReadStream(f).pipe(res);
 }).listen(8080, '127.0.0.1');
 // Local PeerJS connection server on :9000 instead of the public cloud one.
 const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
@@ -84,6 +85,25 @@ const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
   await B.click('#leaveBtn'); await A.waitForTimeout(1500);
   check('Host is told partner left', (await A.textContent('#pillText')) === 'Partner left');
   check('Phone layout: no sideways scroll', (await B.evaluate(() => document.documentElement.scrollWidth)) <= 390);
+  // ---- solo booth ----
+  const S = await mk('Solo', { width: 1200, height: 900 });
+  await S.goto('http://localhost:8080/solo/index.html'); await S.waitForTimeout(800);
+  check('Solo: home page shows', await S.isVisible('#homeView'));
+  check('Solo: links to the live booth', (await S.getAttribute('.nav-links a.quiet', 'href')) === '../');
+  await S.click('#enterBtn'); await S.waitForTimeout(400);
+  check('Solo: Step inside opens the booth', await S.isVisible('#boothView'));
+  const photo = await S.evaluate(() => { const c = document.createElement('canvas'); c.width = 800; c.height = 600; const g = c.getContext('2d'); g.fillStyle = '#e63946'; g.fillRect(0, 0, 800, 600); return c.toDataURL('image/jpeg').split(',')[1]; });
+  await S.setInputFiles('#chooseInput', { name: 'me.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo, 'base64') }); await S.waitForTimeout(600);
+  check('Solo: adding a photo works', (await S.locator('#slots .slot.filled').count()) === 1);
+  const sdl = S.waitForEvent('download', { timeout: 5000 }).catch(() => null);
+  await S.click('#saveBtn'); const sd = await sdl;
+  check('Solo: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
+  await S.locator('.switch').click(); await S.waitForTimeout(300);
+  check('Solo: Duo points to the live booth', (await S.textContent('#togetherNote')).includes('live booth for two'));
+  await S.screenshot({ path: OUT + '/solo-booth.png', fullPage: true });
+  const L = await mk('Lobby', { width: 390, height: 844 });
+  await L.goto('http://localhost:8080/index.html'); await L.waitForTimeout(300);
+  check('Live lobby links to the solo booth', (await L.getAttribute('a[href="solo/"]', 'href')) === 'solo/');
   check('No JavaScript errors', errs.length === 0, errs.join(' | ').slice(0, 400));
   console.log(results.join('\n')); await b.close();
   web.close(); signal.close && signal.close();
