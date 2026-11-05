@@ -1,6 +1,6 @@
 // Keeps Flashbulb working offline after the first visit.
 // Pages are fetched from the network first (so updates arrive) and fall back to the saved copy.
-const CACHE = "flashbulb-v6";
+const CACHE = "flashbulb-v7";
 const CORE = [
   "./", "./index.html", "./solo/", "./solo/index.html", "./config.js",
   "./css/booth.css", "./js/looks.js", "./js/designs.js", "./js/poses.js", "./js/stickers.js", "./js/booth.js",

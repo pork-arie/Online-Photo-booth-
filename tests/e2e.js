@@ -213,6 +213,27 @@ async function makeFaceVideo(browser) {
   await S.goto('http://localhost:8080/solo/?nosw=1'); await S.waitForTimeout(1200);
   check('Old /solo/ link opens Use my photos', (await S.textContent('#modeTag').catch(() => '')) === 'Your photos' && await S.isVisible('#photoPick'));
   await S.close();
+  // ---- iPhone Safari: saving goes through the share sheet (Save Image), or press-and-hold as a fallback ----
+  const IO = await mk('iPhone', { width: 390, height: 844 });
+  await IO.goto('http://localhost:8080/index.html' + q + '&ios=1'); await IO.waitForTimeout(300);
+  await enter(IO, '#photosBtn'); await IO.waitForSelector('#booth[data-view="shoot"]', { timeout: 5000 });
+  const four = ['a', 'b', 'c', 'd'].map((n) => ({ name: n + '.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(red, 'base64') }));
+  const [pc4] = await Promise.all([IO.waitForEvent('filechooser'), IO.click('#shootBtn')]); await pc4.setFiles(four);
+  await IO.waitForFunction(() => document.getElementById('booth').dataset.view === 'result', null, { timeout: 15000 }).catch(() => {});
+  await IO.waitForTimeout(3000);
+  await IO.evaluate(() => { window.__shared = []; navigator.canShare = () => true; navigator.share = (d) => { const f = d.files && d.files[0]; window.__shared.push({ type: f && f.type, size: f && f.size, tap: navigator.userActivation ? navigator.userActivation.isActive : true, extra: !!(d.title || d.text || d.url) }); return Promise.resolve(); }; });
+  await IO.click('#saveBtn'); await IO.waitForTimeout(300);
+  const sh = await IO.evaluate(() => window.__shared);
+  check('iPhone: Save print opens the share sheet with the PNG', sh.length === 1 && sh[0].type === 'image/png' && sh[0].size > 1000 && !sh[0].extra, JSON.stringify(sh));
+  check('iPhone: the share sheet opens right on the tap (Safari allows it)', sh.length === 1 && sh[0].tap === true);
+  check('iPhone: nothing is downloaded the desktop way', (await IO.locator('.hold-sheet').count()) === 0);
+  await IO.evaluate(() => { navigator.share = () => Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' })); });
+  await IO.click('#saveBtn'); await IO.waitForTimeout(400);
+  check('iPhone: if sharing is blocked, the print opens to press and hold', await IO.isVisible('.hold-sheet img') && (await IO.getAttribute('.hold-sheet img', 'src')).startsWith('data:image/png'));
+  await IO.screenshot({ path: OUT + '/iphone-hold-to-save.png' });
+  await IO.click('.hold-sheet .btn');
+  check('iPhone: Done closes it', (await IO.locator('.hold-sheet').count()) === 0);
+  await IO.close();
   const L = await mk('Lobby', { width: 390, height: 844 });
   await L.goto('http://localhost:8080/index.html?nosw=1'); await L.waitForTimeout(300);
   check('Start page offers Just me, Together and Use my photos', await L.isVisible('#soloBtn') && await L.isVisible('#startBtn') && await L.isVisible('#photosBtn'));

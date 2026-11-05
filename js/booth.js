@@ -136,7 +136,9 @@
     ctx.restore();
   }
 
+  let printFile = null, printT = 0; // the saved PNG, made ahead of time (see save / share)
   function render() {
+    queuePrintFile();
     const sp = spec(state.layout), frame = currentFrame();
     canvas.width = sp.W; canvas.height = sp.H; canvas.className = state.layout + (withPoses() ? " wp" : "") + (canvas.classList.contains("develop") ? " develop" : "");
     const d = design();
@@ -1012,35 +1014,50 @@
     const d = new Date(), st = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     return ((state.caption.trim() || "flashbulb").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "flashbulb") + "-" + st + ".png";
   }
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  // Save a file: on iPhone/iPad the share sheet is the way into Photos; elsewhere a normal download.
-  async function saveBlob(blob, name, what) {
-    if (isIOS && navigator.canShare) {
-      const file = new File([blob], name, { type: blob.type });
-      if (navigator.canShare({ files: [file] })) {
-        try { await navigator.share({ files: [file] }); setStatus(`Tap "Save Image" to keep your ${what} in Photos.`); return; }
-        catch (e) { if (e && e.name === "AbortError") return; }
-      }
-    }
+  const isIOS = params.get("ios") === "1" || /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // The finished PNG is made ahead of time: Safari only opens the share sheet if it's called the moment you tap,
+  // and making the picture first takes too long.
+  function queuePrintFile() {
+    clearTimeout(printT); printFile = null;
+    printT = setTimeout(() => canvas.toBlob((b) => { if (b) printFile = new File([b], fileName(), { type: "image/png" }); }, "image/png"), 300);
+  }
+  const canShareFile = (f) => { try { return !!(f && navigator.share && navigator.canShare && navigator.canShare({ files: [f] })); } catch { return false; } };
+  // Last resort on iPhone (old iOS, or in-app browsers like Instagram and Messenger): show the picture so you can
+  // press and hold it, then tap Save to Photos.
+  function holdToSave() {
+    const old = document.querySelector(".hold-sheet"); if (old) old.remove();
+    const box = document.createElement("div"); box.className = "hold-sheet"; box.setAttribute("role", "dialog"); box.setAttribute("aria-label", "Save your print");
+    const img = new Image(); img.alt = "Your print"; img.src = canvas.toDataURL("image/png");
+    const p = document.createElement("p"); p.innerHTML = "<b>Press and hold the picture</b>, then tap <b>Save to Photos</b>.";
+    const close = document.createElement("button"); close.type = "button"; close.className = "btn"; close.textContent = "Done";
+    close.addEventListener("click", () => box.remove());
+    box.append(p, img, close); document.body.appendChild(box);
+    setStatus("Press and hold your print, then tap Save to Photos.");
+  }
+  function download(blob, name, what) {
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 4000); setStatus(`Saved your ${what}.`);
   }
+  // On iPhone/iPad the share sheet (Save Image) is the way into Photos; elsewhere a normal download.
   $("saveBtn").addEventListener("click", () => {
-    render();
+    if (isIOS) {
+      if (canShareFile(printFile)) {
+        navigator.share({ files: [printFile] })
+          .then(() => setStatus("Saved. If you don't see it in Photos, tap Save print and choose Save Image."))
+          .catch((e) => { if (!e || e.name !== "AbortError") holdToSave(); });
+      } else holdToSave();
+      return;
+    }
     canvas.toBlob((b) => {
       if (!b) { setStatus("Couldn't make the image. Try again.", true); return; }
-      saveBlob(b, fileName(), "print");
+      download(b, fileName(), "print");
     }, "image/png");
   });
   $("shareImgBtn").addEventListener("click", () => {
-    render();
-    canvas.toBlob(async (b) => {
-      const file = new File([b], fileName(), { type: "image/png" });
-      try {
-        if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: state.caption });
-        else setStatus("Sharing pictures isn't supported here. Use Save print instead.");
-      } catch (e) { if (e && e.name !== "AbortError") setStatus("Couldn't share the print.", true); }
-    }, "image/png");
+    if (canShareFile(printFile)) {
+      navigator.share({ files: [printFile] }).catch((e) => { if (e && e.name !== "AbortError") { if (isIOS) holdToSave(); else setStatus("Couldn't share the print.", true); } });
+    } else if (isIOS) holdToSave();
+    else setStatus("Sharing pictures isn't supported here. Use Save print instead.");
   });
   $("shareBtn").addEventListener("click", async () => {
     const url = `${location.origin}${location.pathname}?join=${code}`;

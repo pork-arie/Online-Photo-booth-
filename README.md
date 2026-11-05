@@ -78,7 +78,7 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 
 When your shots are done, the print drops out of the slot and develops like an instant photo, with a burst of confetti. Tap **Save print** for the full strip as a PNG picture.
 
-On iPhone and iPad, saving opens the share sheet. Tap **Save Image** to put it in Photos.
+On iPhone and iPad (Safari), **Save print** opens the share sheet: tap **Save Image** to put it in Photos. If the share sheet can't open (older iOS, or in-app browsers like Instagram and Messenger), the print opens full screen instead: press and hold it, then tap **Save to Photos**.
 
 ## Features
 
@@ -193,6 +193,7 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces
+- iPhone saving: Save print opens the share sheet with the picture right on the tap, and falls back to press and hold
 - Use my photos: adding photos, picking a slot, stickers placed on a face in a photo, the print dropping out once every slot is filled, saving, and the old `/solo/` link
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.
