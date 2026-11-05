@@ -87,6 +87,7 @@
         <div class="tile" id="tileA"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
         <div class="tile" id="tileB"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
         <div class="pick" id="photoPick" aria-label="Your photos"></div>
+        <span class="rec-dot" id="recDot" hidden>REC</span>
         <div class="overlay" id="overlay"></div>
         <div class="flash" id="flash"></div>
       </div>
@@ -153,8 +154,7 @@
         <canvas id="strip" class="strip" role="img" aria-label="Your print"></canvas>
         <div class="print-actions">
           <button class="btn solid" id="saveBtn" type="button">Save print</button>
-          <button class="btn" id="gifBtn" type="button">Save GIF</button>
-          <button class="btn" id="reelBtn" type="button">Save video</button>
+          <button class="btn" id="videoBtn" type="button" disabled>Save video</button>
           <button class="btn" id="shareImgBtn" type="button" hidden>Share print</button>
         </div>
       </div>

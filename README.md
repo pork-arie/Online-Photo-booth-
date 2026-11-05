@@ -20,7 +20,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
-5. **Save it** as a picture, a looping GIF or an animated video (see below), or **Share print** straight to apps on your phone.
+5. **Save the print**, or **Save video** for the replay of your session (see below). **Share print** sends it straight to apps on your phone.
 
 If the connection drops for a moment, the booth reconnects by itself.
 
@@ -48,13 +48,12 @@ Stickers show in your preview, in every photo on the print and, in Together, on 
 
 ![Puppy sticker following a face](docs/stickers.png)
 
-## Save as a picture, GIF or video
+## Save the print and the booth video
 
 When your shots are done, the print slides out and develops like an instant photo, with a burst of confetti. Then:
 
 - **Save print:** the full strip as a PNG picture.
-- **Save GIF:** your shots as a looping boomerang GIF, ready for chats.
-- **Save video:** an animated 9:16 video for Reels, Stories or TikTok. It shows your caption, then each shot sliding in with a flash and a slow zoom, then the whole print rising into place with confetti. It's made right in your browser (MP4 on most phones, WebM in some browsers).
+- **Save video:** the replay of your session, like the videos real photo booths give you. While you shoot, the booth records what the camera sees (stickers included), with the countdown, the flash on each shot, the pose for that shot and the booth sounds. It ends with your print sliding out. In Together, the video shows both cameras side by side, includes your voice, and each of you gets your own copy. A red **REC** badge shows on the camera while it records. The video is made on your phone (MP4 on most phones, WebM in some browsers) and isn't uploaded anywhere.
 
 On iPhone and iPad, saving opens the share sheet. Tap **Save Image** or **Save Video** to put it in Photos.
 
@@ -107,7 +106,7 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 |---|---|
 | `index.html` | The page: start screen and booth layout |
 | `css/booth.css` | All the styles, light and dark |
-| `js/booth.js` | The app: camera, connection, shooting, print, GIF and video |
+| `js/booth.js` | The app: camera, connection, shooting, print and the session video |
 | `js/looks.js` | Layouts, film looks, frame colors and season themes |
 | `js/poses.js` | Pose artwork: classic and meme, solo and duo |
 | `js/stickers.js` | Face sticker artwork and placement |
@@ -116,7 +115,6 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 | `sw.js` | Keeps the booth working offline after the first visit |
 | `assets/stickers/` | Sticker artwork: Fluent Emoji 3D accessories and Noto animated emoji (see `CREDITS.md`) |
 | `vendor/face-api/` | Face tracking for the stickers ([face-api](https://github.com/vladmandic/face-api), MIT license) and its two small models |
-| `vendor/gifenc/` | GIF maker ([gifenc](https://github.com/mattdesl/gifenc), MIT license) |
 | `.github/workflows/test.yml` | Runs the automated test on GitHub after every push |
 | `manifest.webmanifest`, `icons/` | Lets phones install the booth like an app |
 | `tests/` | End-to-end test for the whole booth |
@@ -158,12 +156,12 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that the invite link fills in the code
 - that settings sync both ways
 - that both screens get the same pose and countdown
-- that all 8 photos arrive (4 from each person)
+- that all 8 photos arrive (4 from each person), and both partners get the session video
 - that saving downloads the print
 - that a dropped connection reconnects by itself and the video comes back
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, and saving the print, GIF and video
+- Just me: the camera, pose list and swapping, 4 shots, sounds, the print developing, saving the print, and the session video (recorded while shooting, as long as the session)
 - offline: the booth, Just me and Use my photos open with no internet
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces

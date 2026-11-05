@@ -1,9 +1,9 @@
 // Keeps Flashbulb working offline after the first visit.
 // Pages are fetched from the network first (so updates arrive) and fall back to the saved copy.
-const CACHE = "flashbulb-v4";
+const CACHE = "flashbulb-v5";
 const CORE = [
   "./", "./index.html", "./solo/", "./solo/index.html", "./config.js",
-  "./css/booth.css", "./js/looks.js", "./js/poses.js", "./js/stickers.js", "./js/booth.js", "./vendor/gifenc/gifenc.esm.js",
+  "./css/booth.css", "./js/looks.js", "./js/poses.js", "./js/stickers.js", "./js/booth.js",
   "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png",
   "./vendor/face-api/face-api.js",
   "./vendor/face-api/models/tiny_face_detector_model-weights_manifest.json", "./vendor/face-api/models/tiny_face_detector_model.bin",

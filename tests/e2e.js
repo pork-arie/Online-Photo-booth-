@@ -141,6 +141,11 @@ async function makeFaceVideo(browser) {
   const filled = (p) => p.evaluate(() => document.querySelectorAll('#thumbs img').length);
   check('Host has all 8 photos (4 each side)', (await filled(A)) === 8, String(await filled(A)));
   check('Partner has all 8 photos', (await filled(B)) === 8, String(await filled(B)));
+  await A.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 20000 }).catch(() => {});
+  await B.waitForFunction(() => !document.getElementById('videoBtn').disabled, null, { timeout: 20000 }).catch(() => {});
+  check('Both partners get the booth video of the session', !(await A.isDisabled('#videoBtn')) && !(await B.isDisabled('#videoBtn')));
+  const tv = await A.evaluate(async () => { const b = window.__fbTest.video(); return b ? { size: b.size, type: b.type } : null; });
+  check('Together video is recorded (both cameras side by side)', !!tv && tv.size > 100000, tv ? `${Math.round(tv.size / 1024)} KB ${tv.type}` : 'none');
   check('Print saves as PNG', (await A.evaluate(() => new Promise((r) => document.getElementById('strip').toBlob((x) => r(x ? x.size : 0))))) > 0);
   await A.screenshot({ path: OUT + '/booth-host.png', fullPage: true });
   await B.screenshot({ path: OUT + '/booth-partner.png', fullPage: true });
@@ -187,9 +192,7 @@ async function makeFaceVideo(browser) {
   const sdl = S.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await S.click('#saveBtn'); const sd = await sdl;
   check('Photos: Save print downloads a file', !!sd, sd ? sd.suggestedFilename() : '');
-  const sg = S.waitForEvent('download', { timeout: 20000 }).catch(() => null);
-  await S.click('#gifBtn'); const sgd = await sg;
-  check('Photos: Save GIF works too', !!sgd && sgd.suggestedFilename().endsWith('.gif'));
+  check('Photos: no session video button (nothing was recorded)', await S.isHidden('#videoBtn'));
   await S.screenshot({ path: OUT + '/photos-mode.png', fullPage: true });
   await S.goto('http://localhost:8080/solo/?nosw=1'); await S.waitForTimeout(1200);
   check('Old /solo/ link opens Use my photos', (await S.textContent('#modeTag').catch(() => '')) === 'Your photos' && await S.isVisible('#photoPick'));
@@ -228,6 +231,7 @@ async function makeFaceVideo(browser) {
   await J.click('#tabBtn-look');
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
+  const sawRec = await J.isVisible('#recDot');
   check('Countdown keeps the pose beside the camera (no pop-up)', (await J.locator('.pose-pop').count()) === 0 && await J.isVisible('#poseRail'));
   check('Shot 1 pose is highlighted beside the camera', (await J.locator('#poseRail .rail-card').nth(0).getAttribute('aria-pressed')) === 'true');
   await J.waitForTimeout(3000);
@@ -241,20 +245,26 @@ async function makeFaceVideo(browser) {
   check('Just me saves the print', !!jd, jd ? jd.suggestedFilename() : '');
   check('Countdown beeps and shutter sounds play', (await J.evaluate(() => window.__fbTest.sounds())) >= 16, String(await J.evaluate(() => window.__fbTest.sounds())));
   check('The print develops like instant film', await J.evaluate(() => document.getElementById('strip').classList.contains('develop')));
-  // GIF: a real animated GIF file
-  const gdl = J.waitForEvent('download', { timeout: 20000 }).catch(() => null);
-  await J.click('#gifBtn'); const gd = await gdl;
-  let gifOk = false, gifInfo = '';
-  if (gd) { const b = fs.readFileSync(await gd.path()); const frames = b.toString('latin1').split('\x21\xF9\x04').length - 1; gifOk = b.slice(0, 6).toString() === 'GIF89a' && frames >= 4; gifInfo = `${gd.suggestedFilename()}, ${frames} frames, ${Math.round(b.length / 1024)} KB`; }
-  check('Save GIF makes an animated boomerang GIF', gifOk, gifInfo);
-  // Video: an animated reel recorded in the browser
-  const vdl = J.waitForEvent('download', { timeout: 40000 }).catch(() => null);
-  await J.click('#reelBtn');
-  await J.waitForFunction(() => document.getElementById('status').textContent.includes('Making your video'), null, { timeout: 5000 }).catch(() => {});
-  const progressShown = (await J.textContent('#status')).includes('%');
-  const vd = await vdl; let vidInfo = '', vidOk = false;
-  if (vd) { const b = fs.readFileSync(await vd.path()); vidOk = b.length > 30000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(b.length / 1024)} KB`; fs.copyFileSync(await vd.path(), OUT + '/reel' + path.extname(vd.suggestedFilename())); }
-  check('Save video makes an animated video reel', vidOk && progressShown, vidInfo);
+  // Save video: the replay of the session itself (camera, countdown, flash, then the print)
+  check('The booth records the session (REC shows while shooting)', sawRec, '');
+  await J.waitForFunction(() => document.getElementById('status').textContent.includes('booth video is ready'), null, { timeout: 20000 }).catch(() => {});
+  check('Booth video is ready after the session', !(await J.isDisabled('#videoBtn')) && (await J.isHidden('#recDot')), await J.textContent('#status'));
+  const vdl = J.waitForEvent('download', { timeout: 10000 }).catch(() => null);
+  await J.click('#videoBtn'); const vd = await vdl; let vidInfo = '', vidOk = false, vidFile = '';
+  if (vd) { vidFile = OUT + '/session' + path.extname(vd.suggestedFilename()); fs.copyFileSync(await vd.path(), vidFile); const sz = fs.statSync(vidFile).size; vidOk = sz > 100000 && /\.(webm|mp4)$/.test(vd.suggestedFilename()); vidInfo = `${vd.suggestedFilename()}, ${Math.round(sz / 1024)} KB`; }
+  check('Save video saves the replay of your session', vidOk, vidInfo);
+  if (vidFile) {
+    const V = await J.context().newPage();
+    const info = await V.evaluate(async (b64) => {
+      const v = document.createElement('video'); v.muted = true; document.body.appendChild(v);
+      v.src = URL.createObjectURL(new Blob([Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))], { type: b64.startsWith('AAAA') ? 'video/mp4' : 'video/webm' }));
+      await new Promise((r) => { v.onloadedmetadata = r; v.onerror = r; });
+      if (!isFinite(v.duration)) { v.currentTime = 1e6; await new Promise((r) => { v.ontimeupdate = r; setTimeout(r, 2000); }); }
+      return { d: v.duration, w: v.videoWidth, h: v.videoHeight };
+    }, fs.readFileSync(vidFile).toString('base64'));
+    check('The video lasts as long as the session (4 shots + the print)', info.d >= 18, `${info.d.toFixed(1)} s, ${info.w}x${info.h}`);
+    await V.close();
+  }
   await J.click('#soundBtn');
   check('Sound button turns sounds off', await J.evaluate(() => document.getElementById('soundBtn').classList.contains('off')));
   await J.click('#soundBtn');

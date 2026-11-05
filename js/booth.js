@@ -737,14 +737,16 @@
     for (const sd of ["A", "B"]) for (let i = 0; i < 4; i++) sideArr(sd)[i] = null;
     render(); renderThumbs();
     const total = nRemote || n;
+    startRecording(total);
     for (let i = 0; i < total; i++) {
+      if (rec) rec.shot = i;
       if (poseMode !== "off" && i < LAYOUTS[state.layout].n) { pickPose(i); $("poseRail").classList.add("live"); }
       else overlay(poseCardHTML(i, total)); // no pose guide: a short "Strike a pose!" on the camera
       if (poseMode !== "off") { const pi = poseInfo(i); setStatus(`Shot ${i + 1} of ${total}: ${pi.name}. ${pi.tip || "Get ready!"}`); }
       else setStatus(`Shot ${i + 1} of ${total}: get ready.`);
       await sleep(1800);
-      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); beep(k === 1 ? 990 : 660, k === 1 ? .18 : .12); await sleep(800); }
-      overlay("");
+      for (const k of [3, 2, 1]) { overlay(`<div class="count">${k}</div>`); if (rec) { rec.count = k; rec.countAt = performance.now(); } beep(k === 1 ? 990 : 660, k === 1 ? .18 : .12); await sleep(800); }
+      overlay(""); if (rec) { rec.count = 0; rec.flashAt = performance.now(); }
       const f = $("flash"); f.classList.remove("go"); void f.offsetWidth; f.classList.add("go"); shutter();
       const mine = frameFrom(pipelineOn ? fxCanvas : localVideo(), facing !== "user");
       if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
@@ -756,7 +758,8 @@
       await sleep(900);
     }
     busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); $("poseRail").classList.remove("live"); buildUI();
-    setStatus("Done! Your print is ready. Save it as a picture, GIF or video, or tap Start to shoot again.");
+    setStatus(rec ? "Done! Your print is ready. Your booth video will be ready in a moment." : "Done! Your print is ready. Save it, or tap Start to shoot again.");
+    finishRecording();
     const st = $("strip"); st.classList.remove("develop"); void st.offsetWidth; st.classList.add("develop"); // the print develops like instant film
     confettiBurst(); beep(1320, .1, .12); setTimeout(() => beep(1760, .16, .12), 120);
     st.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "nearest" });
@@ -853,7 +856,7 @@
     $("modeTag").textContent = "Your photos";
     ["micBtn", "flipBtn", "soundBtn"].forEach((id) => { $(id).hidden = true; });
     $("shootLabel").textContent = "Add photos"; $("shootBtn").disabled = false;
-    renderPick(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
+    renderPick(); updateVideoBtn(); setStatus("Tap Add photos, or a numbered box, to pick pictures from your gallery.");
   }
   $("photoMany").addEventListener("change", (e) => addPhotos(e.target.files, null));
   $("photoOne").addEventListener("change", (e) => addPhotos(e.target.files, pickSlot));
@@ -869,17 +872,19 @@
   /* ---------- Sounds: countdown beeps and a shutter click (Web Audio, no files) ---------- */
   let soundOn = true, actx = null, soundsPlayed = 0;
   try { soundOn = localStorage.getItem("fb-sound") !== "0"; } catch {}
-  function audio() {
-    if (!soundOn) return null;
+  function anyAudio() {
     try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); return actx; } catch { return null; }
   }
+  function audio() { return soundOn ? anyAudio() : null; }
+  let master = null; // every booth sound goes here: to your speaker, and into the session video while recording
+  function sinkFor(a) { if (!master || master.context !== a) { master = a.createGain(); master.connect(a.destination); } return master; }
   document.addEventListener("pointerdown", () => { if (soundOn) audio(); }, { once: true }); // phones only allow sound after a tap
   function beep(freq = 880, dur = .12, vol = .18) {
     const a = audio(); if (!a) return; soundsPlayed++;
     const o = a.createOscillator(), g = a.createGain(), t = a.currentTime;
     o.type = "sine"; o.frequency.value = freq;
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + .01); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .02);
+    o.connect(g).connect(sinkFor(a)); o.start(t); o.stop(t + dur + .02);
   }
   function shutter() {
     const a = audio(); if (!a) return; soundsPlayed++;
@@ -887,7 +892,7 @@
     for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
     const src = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
     src.buffer = buf; f.type = "highpass"; f.frequency.value = 1400; g.gain.value = .55;
-    src.connect(f).connect(g).connect(a.destination); src.start();
+    src.connect(f).connect(g).connect(sinkFor(a)); src.start();
   }
   function renderSoundBtn() {
     const b = $("soundBtn"); b.classList.toggle("off", !soundOn);
@@ -913,114 +918,119 @@
     })(start);
   }
 
-  /* ---------- Shot cards: one framed picture per shot, used by the GIF and the video ---------- */
-  function captionOn(g, text, cx, y, size, frame) {
-    if (!text) return;
-    g.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
-    const tw = g.measureText(text).width;
-    if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha = .9; g.fillRect(cx - tw / 2 - size * .3, y - size * .5, tw + size * .6, size * .62); g.globalAlpha = 1; }
-    g.fillStyle = frame.ink; g.fillText(text, cx, y);
-  }
-  function shotsTaken() { const n = LAYOUTS[state.layout].n, out = []; for (let i = 0; i < n; i++) if (sideArr("A")[i] || sideArr("B")[i]) out.push(i); return out; }
-  function shotCard(i, W) {
-    const frame = currentFrame(), m = Math.round(W * .04), pw = W - m * 2, ph = Math.round(pw * 3 / 4), foot = Math.round(W * .13), H = m + ph + foot;
-    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
-    paintBackground(g, W, H, frame, W / 600);
-    const sides = state.duo ? ["A", "B"] : ["A"], gap = state.duo ? Math.round(W * .012) : 0, w = (pw - gap * (sides.length - 1)) / sides.length;
-    sides.forEach((sd, k) => {
-      const p = sideArr(sd)[i], x = m + k * (w + gap);
-      if (p) g.drawImage(shotImage(p.canvas, w, ph), x, m);
-      else { g.fillStyle = frame.ink; g.globalAlpha = .08; g.fillRect(x, m, w, ph); g.globalAlpha = 1; }
-    });
-    captionOn(g, state.caption.trim(), W / 2, m + ph + foot * .62, Math.round(W * .05), frame);
-    return c;
-  }
-
-  /* ---------- GIF: the shots as a looping boomerang ---------- */
-  async function makeGif() {
-    const { GIFEncoder, quantize, applyPalette } = await import(new URL("vendor/gifenc/gifenc.esm.js", document.baseURI).href); // relative to the page, not this file
-    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
-    const cards = idx.map((i) => shotCard(i, 480));
-    const order = cards.length > 2 ? [...cards.keys(), ...[...cards.keys()].slice(1, -1).reverse()] : [...cards.keys()];
-    const enc = GIFEncoder();
-    for (const k of order) {
-      const c = cards[k], { data } = c.getContext("2d").getImageData(0, 0, c.width, c.height);
-      const palette = quantize(data, 256), index = applyPalette(data, palette);
-      enc.writeFrame(index, c.width, c.height, { palette, delay: 600 });
-      await sleep(0); // keep the page responsive
-    }
-    enc.finish();
-    return new Blob([enc.bytes()], { type: "image/gif" });
-  }
-
-  /* ---------- Video reel: an animated story of your shots (9:16, ready for Reels and Stories) ---------- */
+  /* ---------- Booth video: a replay of your session, like a real photo booth ----------
+     While you shoot, the booth records what the camera sees (stickers included), the countdown, the flash and the
+     pose for each shot, plus the booth sounds (and, in Together, your voice and both cameras side by side).
+     It ends with your print sliding out. */
   const ease = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
   const easeBack = (x) => { x = Math.min(1, Math.max(0, x)); const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
-  function reelMime() {
-    if (typeof MediaRecorder === "undefined") return "";
-    return ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"].find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
+  function recMime() {
+    if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) return "";
+    return ["video/mp4;codecs=avc1,mp4a.40.2", "video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"]
+      .find((m) => { try { return MediaRecorder.isTypeSupported(m); } catch { return false; } }) || "";
   }
-  async function makeReel(progress) {
-    const mime = reelMime(); if (!mime) throw new Error("no-recorder");
-    const idx = shotsTaken(); if (!idx.length) throw new Error("no-shots");
-    const W = 720, H = 1280, frame = currentFrame();
-    const c = document.createElement("canvas"); c.width = W; c.height = H; const g = c.getContext("2d");
-    const bg = document.createElement("canvas"); bg.width = W; bg.height = H + 200; paintBackground(bg.getContext("2d"), bg.width, bg.height, frame, 1.6);
-    const cards = idx.map((i) => shotCard(i, 640));
-    render(); const print = document.createElement("canvas"); print.width = canvas.width; print.height = canvas.height; print.getContext("2d").drawImage(canvas, 0, 0);
-    const INTRO = 1.4, SHOT = 1.7, OUTRO = 2.6, T = INTRO + SHOT * cards.length + OUTRO;
-    const cols = ["#1F5C4A", "#7CC8AC", "#F2B33D", "#E8536F", "#3A86FF"];
-    const bits = Array.from({ length: 90 }, (_, k) => ({ x: (k * 97) % W, d: (k * 37) % 100 / 100, s: 6 + (k % 5) * 2, c: cols[k % 5], sp: .7 + (k % 7) / 10 }));
-    const date = new Date().toLocaleDateString("en", { day: "numeric", month: "long", year: "numeric" });
-    function draw(t) {
-      g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1;
-      g.drawImage(bg, 0, -((t / T) * 200)); // slow upward drift
-      const cap = state.caption.trim();
-      if (t < INTRO + .3) { // title card: caption pops in, highlight wipes across
-        const a = ease((t - .1) / .6);
-        g.globalAlpha = Math.min(1, a) * (t > INTRO ? 1 - (t - INTRO) / .3 : 1);
-        g.save(); g.translate(W / 2, H * .46); g.scale(.8 + .2 * easeBack((t - .1) / .7), .8 + .2 * easeBack((t - .1) / .7));
-        g.font = `700 64px "Comfortaa", "Century Gothic", sans-serif`; g.textAlign = "center"; const tw = g.measureText(cap || "Flashbulb").width;
-        if (state.capHl) { g.fillStyle = frame.hl; g.globalAlpha *= .9; g.fillRect(-tw / 2 - 20, -34, (tw + 40) * ease((t - .4) / .5), 40); g.globalAlpha = Math.min(1, a); }
-        g.fillStyle = frame.ink; g.fillText(cap || "Flashbulb", 0, 0);
-        g.font = `600 26px "Urbanist", sans-serif`; g.globalAlpha *= .7; g.fillText(date, 0, 62); g.restore();
-      }
-      cards.forEach((card, k) => { // each shot slides in, slowly zooms, then flashes to the next
-        const t0 = INTRO + k * SHOT, lt = t - t0; if (lt < -.2 || lt > SHOT + .35) return;
-        const inX = (1 - ease(lt / .45)) * W, outX = lt > SHOT ? -ease((lt - SHOT) / .35) * W : 0, zoom = 1 + .06 * Math.min(1, Math.max(0, lt) / SHOT);
-        const cw = card.width * zoom, ch = card.height * zoom, x = (W - cw) / 2 + inX + outX, y = (H - ch) / 2 - 40, tilt = (k % 2 ? 1 : -1) * .025 * (1 - ease(lt / .6));
-        g.save(); g.translate(x + cw / 2, y + ch / 2); g.rotate(tilt);
-        g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 40; g.shadowOffsetY = 18; g.drawImage(card, -cw / 2, -ch / 2, cw, ch); g.restore();
-        g.font = `700 30px "Urbanist", sans-serif`; g.textAlign = "center"; g.fillStyle = frame.ink; g.globalAlpha = ease(lt / .5) * (lt > SHOT ? 0 : 1);
-        g.fillText(`SHOT ${idx[k] + 1}`, W / 2, y + ch + 70);
-        if (poseMode !== "off") { g.font = `700 40px "Comfortaa", "Century Gothic", sans-serif`; g.fillText(poseInfo(idx[k]).name, W / 2, y + ch + 120); }
-        g.globalAlpha = 1;
-        if (lt >= 0 && lt < .3) { g.fillStyle = "#fff"; g.globalAlpha = .85 * (1 - lt / .3); g.fillRect(0, 0, W, H); g.globalAlpha = 1; } // flash
-      });
-      const ot = t - (INTRO + SHOT * cards.length);
-      if (ot > -.2) { // the full print rises into place, confetti falls
-        const s = Math.min((W * .82) / print.width, (H * .78) / print.height), pw = print.width * s, ph = print.height * s;
-        const y = H - (H - ph) / 2 - ph - (1 - easeBack(ot / .9)) * -H * .9;
-        if (ot > .5) bits.forEach((b) => { // confetti behind the print
-          const yy = ((ot - .5) * 260 * b.sp + b.d * H) % (H + 40) - 20;
-          g.save(); g.translate(b.x + Math.sin(ot * 3 + b.d * 9) * 14, yy); g.rotate(ot * 4 + b.d * 6); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
-        });
-        g.save(); g.shadowColor = "rgba(0,0,0,.35)"; g.shadowBlur = 50; g.shadowOffsetY = 24; g.drawImage(print, (W - pw) / 2, y, pw, ph); g.restore();
-      }
+  let rec = null, sessionVideo = null;
+  function coverDraw(g, src, x, y, w, h, mirror) {
+    const sw = src && (src.videoWidth || src.width), sh = src && (src.videoHeight || src.height);
+    if (!sw || !sh) return;
+    const s = Math.max(w / sw, h / sh), dw = sw * s, dh = sh * s;
+    g.save(); g.beginPath(); g.rect(x, y, w, h); g.clip();
+    if (mirror) { g.translate(x + w, y); g.scale(-1, 1); g.drawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh); }
+    else g.drawImage(src, x + (w - dw) / 2, y + (h - dh) / 2, dw, dh);
+    g.restore();
+  }
+  function pill(g, text, x, y, size, bg, fg, align = "left") {
+    g.font = `700 ${size}px "Urbanist", sans-serif`; const w = g.measureText(text).width + size * 1.2, h = size * 1.9;
+    const x0 = align === "right" ? x - w : align === "center" ? x - w / 2 : x;
+    g.fillStyle = bg; g.beginPath(); g.roundRect ? g.roundRect(x0, y, w, h, h / 2) : g.rect(x0, y, w, h); g.fill();
+    g.fillStyle = fg; g.textBaseline = "middle"; g.textAlign = "left"; g.fillText(text, x0 + size * .6, y + h / 2); return w;
+  }
+  function startRecording(total) {
+    const mime = recMime(); if (!mime || photosMode) return;
+    sessionVideo = null; updateVideoBtn();
+    const duo = !solo, W = duo ? 960 : 720, H = duo ? 720 : 960;
+    const c = document.createElement("canvas"); c.width = W; c.height = H;
+    const r = { c, g: c.getContext("2d"), W, H, duo, total, shot: -1, count: 0, countAt: 0, flashAt: -1e9, endAt: 0, print: null, chunks: [], raf: 0, stopped: false, mime };
+    const tracks = [c.captureStream(30).getVideoTracks()[0]];
+    const a = anyAudio();
+    if (a) { // booth sounds, and in Together your microphone, go into the video (not to your speaker)
+      r.dest = a.createMediaStreamDestination(); sinkFor(a).connect(r.dest);
+      const mic = !solo && localStream && localStream.getAudioTracks()[0];
+      if (mic) { r.mic = a.createMediaStreamSource(new MediaStream([mic])); r.mic.connect(r.dest); }
+      tracks.push(...r.dest.stream.getAudioTracks());
     }
-    const stream = c.captureStream(30), rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6e6 }), chunks = [];
-    rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-    const done = new Promise((res) => { rec.onstop = res; });
-    draw(0); rec.start(250);
-    const start = performance.now();
-    await new Promise((res) => {
-      (function tick() {
-        const t = (performance.now() - start) / 1000; draw(Math.min(t, T)); progress && progress(Math.min(1, t / T));
-        if (t < T) requestAnimationFrame(tick); else res();
-      })();
-    });
-    await sleep(150); rec.stop(); await done; stream.getTracks().forEach((tr) => tr.stop());
-    return new Blob(chunks, { type: mime.split(";")[0] });
+    try { r.rec = new MediaRecorder(new MediaStream(tracks), { mimeType: mime, videoBitsPerSecond: 4e6 }); } catch (e) { return; }
+    r.rec.ondataavailable = (e) => { if (e.data && e.data.size) r.chunks.push(e.data); };
+    r.done = new Promise((res) => { r.rec.onstop = res; });
+    rec = r; drawRec(); r.rec.start(500);
+    $("recDot").hidden = false;
+  }
+  function drawRec() {
+    const r = rec; if (!r || r.stopped) return;
+    r.raf = requestAnimationFrame(drawRec);
+    const { g, W, H } = r, now = performance.now(), mineSrc = pipelineOn ? fxCanvas : localVideo();
+    g.fillStyle = "#0F1110"; g.fillRect(0, 0, W, H);
+    // the camera(s), mirrored the way you saw yourself
+    if (r.duo) {
+      const half = (W - 6) / 2, mineLeft = mySide === "A";
+      coverDraw(g, mineLeft ? mineSrc : remoteVideo(), 0, 0, half, H, mineLeft ? facing === "user" : partnerFront);
+      coverDraw(g, mineLeft ? remoteVideo() : mineSrc, half + 6, 0, half, H, mineLeft ? partnerFront : facing === "user");
+    } else coverDraw(g, mineSrc, 0, 0, W, H, facing === "user");
+    const u = W / 720;
+    // shot counter and the booth name
+    if (r.shot >= 0 && !r.endAt) pill(g, `SHOT ${r.shot + 1} OF ${r.total}`, 22 * u, 22 * u, 22 * u, "rgba(0,0,0,.55)", "#fff");
+    pill(g, "● REC", W - 22 * u, 22 * u, 20 * u, "rgba(200,30,40,.85)", "#fff", "right");
+    // the pose for this shot, on a card like the one beside the camera
+    if (poseMode !== "off" && r.shot >= 0 && r.shot < LAYOUTS[state.layout].n && !r.endAt) {
+      const key = packKey(), idx = picks[key][r.shot], duo = poseFor === "duo", cw = (duo ? 250 : 170) * u, ch = 170 * u, x = W - cw - 22 * u, y = H - ch - 22 * u;
+      g.fillStyle = "rgba(255,255,255,.94)"; g.beginPath(); g.roundRect ? g.roundRect(x, y, cw, ch, 18 * u) : g.rect(x, y, cw, ch); g.fill();
+      if (poseMode === "meme") {
+        const im = poseArt(idx, { ink: "#111413", bg: "#ffffff" }, duo);
+        if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min((cw - 20 * u) / iw, (ch - 50 * u) / ih); g.drawImage(im, x + (cw - iw * s) / 2, y + 10 * u, iw * s, ih * s); }
+      } else {
+        const it = packList(key)[idx]; g.font = `${60 * u}px ${EMOJI_FONT}`; g.textAlign = "center"; g.textBaseline = "middle"; g.fillText(duo ? it[0] + it[1] : it[0], x + cw / 2, y + 65 * u);
+      }
+      g.fillStyle = "#111413"; g.font = `700 ${19 * u}px "Comfortaa", sans-serif`; g.textAlign = "center"; g.textBaseline = "alphabetic";
+      g.fillText(poseInfo(r.shot).name, x + cw / 2, y + ch - 16 * u, cw - 16 * u);
+    }
+    // 3, 2, 1
+    if (r.count) {
+      const p = Math.min(1, (now - r.countAt) / 800), sc = 1.45 - .45 * ease(p / .35);
+      g.save(); g.translate(W / 2, H / 2); g.scale(sc, sc); g.globalAlpha = Math.min(1, p * 4);
+      g.font = `700 ${230 * u}px "Comfortaa", sans-serif`; g.textAlign = "center"; g.textBaseline = "middle";
+      g.shadowColor = "rgba(0,0,0,.55)"; g.shadowBlur = 30 * u; g.fillStyle = "#fff"; g.fillText(String(r.count), 0, 0); g.restore();
+    }
+    // the flash
+    const fa = 1 - (now - r.flashAt) / 450;
+    if (fa > 0) { g.fillStyle = `rgba(255,255,255,${(.92 * fa).toFixed(3)})`; g.fillRect(0, 0, W, H); }
+    // the end: your print slides out
+    if (r.endAt && r.print) {
+      const p = (now - r.endAt) / 900;
+      g.fillStyle = `rgba(15,17,16,${(.75 * ease(p)).toFixed(3)})`; g.fillRect(0, 0, W, H);
+      const s = Math.min((W * .8) / r.print.width, (H * .86) / r.print.height), pw = r.print.width * s, ph = r.print.height * s;
+      const y = (H - ph) / 2 + (1 - easeBack(p)) * H;
+      g.save(); g.shadowColor = "rgba(0,0,0,.5)"; g.shadowBlur = 40 * u; g.shadowOffsetY = 18 * u; g.drawImage(r.print, (W - pw) / 2, y, pw, ph); g.restore();
+    }
+  }
+  async function finishRecording() {
+    const r = rec; if (!r) return;
+    render(); const pc = document.createElement("canvas"); pc.width = canvas.width; pc.height = canvas.height; pc.getContext("2d").drawImage(canvas, 0, 0);
+    r.print = pc; r.endAt = performance.now();
+    await sleep(3200); // hold on the finished print
+    r.stopped = true; cancelAnimationFrame(r.raf);
+    try { r.rec.stop(); } catch (e) {}
+    await r.done;
+    try { if (r.mic) r.mic.disconnect(); if (r.dest && master) master.disconnect(r.dest); } catch (e) {}
+    r.rec.stream.getTracks().forEach((t) => { if (t.kind === "video") t.stop(); });
+    if (rec === r) rec = null;
+    $("recDot").hidden = true;
+    if (!r.chunks.length) { setStatus("Couldn't record this session's video. The print is still ready.", true); return; }
+    sessionVideo = new Blob(r.chunks, { type: r.mime.split(";")[0] }); updateVideoBtn();
+    setStatus("Your booth video is ready. Tap Save video to keep the replay.");
+  }
+  function updateVideoBtn() {
+    const b = $("videoBtn"); b.hidden = !recMime() || photosMode;
+    b.disabled = !sessionVideo; b.title = sessionVideo ? "Save the replay of your session" : "Take your shots first. The booth records the session for you.";
   }
 
   /* ---------- save / share ---------- */
@@ -1048,25 +1058,12 @@
       saveBlob(b, fileName(), "print");
     }, "image/png");
   });
-  function exportBusy(on) { ["saveBtn", "gifBtn", "reelBtn"].forEach((id) => { $(id).disabled = on; }); }
   const baseName = () => fileName().replace(/\.png$/, "");
-  $("gifBtn").addEventListener("click", async () => {
-    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a GIF."); return; }
-    exportBusy(true); setStatus("Making your GIF…");
-    try { await saveBlob(await makeGif(), baseName() + ".gif", "GIF"); }
-    catch (e) { setStatus("Couldn't make the GIF. Try again.", true); }
-    exportBusy(false);
+  $("videoBtn").addEventListener("click", () => {
+    if (!sessionVideo) { setStatus("Take your shots first. The booth records your session as a video."); return; }
+    saveBlob(sessionVideo, baseName() + (sessionVideo.type.includes("mp4") ? ".mp4" : ".webm"), "booth video");
   });
-  $("reelBtn").addEventListener("click", async () => {
-    if (!shotsTaken().length) { setStatus("Take your shots first, then save them as a video."); return; }
-    if (!reelMime()) { setStatus("This browser can't make videos. Try Chrome, or save a GIF instead.", true); return; }
-    exportBusy(true);
-    try {
-      const blob = await makeReel((p) => setStatus(`Making your video… ${Math.round(p * 100)}%`));
-      await saveBlob(blob, baseName() + (blob.type.includes("mp4") ? ".mp4" : ".webm"), "video");
-    } catch (e) { setStatus("Couldn't make the video. Try again, or save a GIF instead.", true); }
-    exportBusy(false);
-  });
+  updateVideoBtn();
   $("shareImgBtn").addEventListener("click", () => {
     render();
     canvas.toBlob(async (b) => {
@@ -1093,7 +1090,7 @@
     cancelAnimationFrame(fxRaf);
   }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
-  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, gif: () => makeGif(), reel: () => makeReel(), drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
+  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, video: () => sessionVideo, drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
   window.addEventListener("pagehide", stopAll);
 
   $("soloBtn").addEventListener("click", startSolo);

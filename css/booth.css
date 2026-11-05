@@ -237,3 +237,9 @@ h1.display em { font-style: normal; color: var(--accent); }
 }
 @media (prefers-reduced-motion: reduce) { .count, .flash.go { animation: none; } }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* recording indicator on the camera while the booth records your session */
+.rec-dot { position: absolute; top: 10px; right: 10px; z-index: 3; display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: rgba(200, 30, 40, .88); color: #fff; font: 700 11px var(--font-body); letter-spacing: .1em; }
+.rec-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #fff; animation: rec-blink 1s steps(2, start) infinite; }
+@keyframes rec-blink { to { visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .rec-dot::before { animation: none; } }
