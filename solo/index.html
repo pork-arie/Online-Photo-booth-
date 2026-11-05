@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Flashbulb Solo Booth</title>
 <meta name="description" content="Take a four-shot photo strip with film looks, season themes and meme poses.">
+<meta name="theme-color" content="#F3F4F2">
+<link rel="manifest" href="../manifest.webmanifest">
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="apple-touch-icon" href="../icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Urbanist:wght@400;500;600;700&display=swap">
@@ -1473,6 +1477,9 @@ html, body { margin: 0; }
   Promise.all([fontsReady, loadRealSamples()]).then(() => { buildAll(); paintHome(); });
   if (window.claude && window.claude.use) window.claude.use("downloads").then((d) => { downloads = d; }, () => {});
 })();
+</script>
+<script>
+  if ("serviceWorker" in navigator && window.isSecureContext && !location.search.includes("nosw")) navigator.serviceWorker.register("../sw.js").catch(() => {});
 </script>
 </body>
 </html>

@@ -1,30 +1,45 @@
-# Flashbulb Live
+# Flashbulb Photo Booth
 
-A live photo booth for two people who are far apart. You see and hear each other, get the same pose and the same 3‑2‑1 countdown, and end up with one shared photo strip.
+A photo booth in your browser. Shoot on your own, or with someone far away while you see and hear each other live. Every booth has pose cards, a 3‑2‑1 countdown and one printed strip at the end.
 
-Shooting alone? The **solo booth** at [`/solo/`](solo/) has the same looks for one person.
+![Start page with three ways to shoot](docs/start-page.png)
 
-![Two live cameras side by side during the countdown](docs/live-countdown.png)
+## Three ways to shoot
 
-## How it works
+| | What it does | Internet |
+|---|---|---|
+| **Just me** | Your live camera, a pose for each shot, a countdown and one print | Not needed after the first visit |
+| **Together** | Two people far apart see and hear each other live, pose together and both get the same print | Needed |
+| **Use my photos** (`/solo/`) | Turn photos you already took into a strip with the same looks | Not needed after the first visit |
+
+### Together, step by step
 
 1. **Start a booth.** Allow your camera and microphone. You get a 6‑letter code and a **Share link** button.
 2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
-3. **See each other live.** You're on the left, your partner is on the right, and you can talk. There are buttons to mute and to switch between front and back cameras.
-4. **Tap Start 4 shots.** Both screens show the same pose card (for example "Shot 2 of 4: Heart hands"), count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
-5. **Save the print** as a PNG, or **Share print** straight to apps on your phone.
+3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
+4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
+5. **Save the print**, or **Share print** straight to apps on your phone.
 
-![The finished shared print](docs/live-booth.png)
+![Together: two cameras and the shared print](docs/live-booth.png)
+
+### Just me
+
+![Just me: one camera and your print](docs/just-me.png)
+
+## Works offline and installs like an app
+
+After you've opened the booth once, **Just me** and **Use my photos** keep working with no internet. On your phone, use **Add to Home Screen** (Safari) or **Install app** (Chrome) to keep Flashbulb on your home screen. **Together** still needs internet, because it connects two phones.
 
 ## Features
 
-- **Layouts:** Strip (4 shots), Grid (2 × 2) or Instant (1 big shot), with you and your partner side by side in every frame
+- **Layouts:** Strip (4 shots), Grid (2 × 2) or Instant (1 big shot). In Together, you and your partner are side by side in every frame.
 - **Film looks:** Natural, Silver, Sepia, Faded film, Cool, Vivid
 - **Frames:** Paper, Onyx, Blush, Sage, Sand, Navy
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
-- **Synced settings:** whatever either person changes appears on both screens
+- **Settings in three tabs:** Look (layout, film, frame, season), Poses (guide, the upcoming poses and swapping them) and Caption
+- **Synced settings in Together:** whatever either person changes appears on both screens
 
 ## Put it online (GitHub Pages)
 
@@ -48,8 +63,10 @@ Any other static host works too, for example Netlify or Cloudflare Pages. The wh
 
 | Path | What it is |
 |---|---|
-| `index.html` | The live booth for two (HTML, CSS and JavaScript in one file) |
-| `solo/index.html` | The solo booth: a home page plus a one-person booth with the same layouts, looks, seasons and poses. Its Duo switch lets you add a partner's photos yourself. |
+| `index.html` | The main booth: start page, Just me and Together (HTML, CSS and JavaScript in one file) |
+| `solo/index.html` | Use my photos: build a strip from photos you already have, with the same layouts, looks, seasons and poses |
+| `sw.js` | Keeps the booth working offline after the first visit |
+| `manifest.webmanifest`, `icons/` | Lets phones install the booth like an app |
 | `tests/` | End-to-end test for both booths |
 | `docs/` | Screenshots used in this README |
 
@@ -63,7 +80,8 @@ Any other static host works too, for example Netlify or Cloudflare Pages. The wh
 4. Change the film or season on one phone. It should change on the other.
 5. Tap **Start 4 shots**. Both phones should show the same pose and countdown, and after 4 flashes both should show the same print.
 6. Tap **Save print** and check the picture is in your downloads or photos.
-7. Open `/solo/` and take a strip on your own.
+7. Go back, tap **Just me** and take a strip on your own.
+8. Turn on airplane mode and open the link again: **Just me** should still work.
 
 If the cameras don't connect, try both phones on Wi-Fi first (see "Mobile data" above).
 
@@ -90,6 +108,8 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - that saving downloads the print
 - what happens when a partner leaves
 - that the phone layout doesn't scroll sideways
-- in the solo booth: the home page, adding a photo, saving, and the links between the two booths
+- Just me: the camera, pose list and swapping, 4 shots, and saving
+- offline: the booth, Just me and Use my photos open with no internet
+- Use my photos: the home page, adding a photo, saving, and the links between pages
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

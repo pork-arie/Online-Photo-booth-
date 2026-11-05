@@ -1,0 +1,14 @@
+{
+  "name": "Flashbulb photo booth",
+  "short_name": "Flashbulb",
+  "description": "A photo booth for one, or for two people far apart who want to pose together live.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#F3F4F2",
+  "theme_color": "#1F5C4A",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

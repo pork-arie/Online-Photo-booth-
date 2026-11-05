@@ -3,9 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Flashbulb Live</title>
-<meta name="description" content="A live photo booth for two: see each other, pose together, and get one printed strip.">
+<title>Flashbulb Photo Booth</title>
+<meta name="description" content="A photo booth in your browser: shoot alone, or pose together live with someone far away, and keep one printed strip.">
 <meta name="theme-color" content="#F3F4F2">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@400;600;700&family=Urbanist:wght@400;500;600;700&display=swap">
@@ -51,28 +54,43 @@ body { background: var(--bg); color: var(--ink); font: 15px/1.55 var(--font-body
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 .btn.off { color: var(--danger); }
 
-/* lobby */
-.lobby { padding-block: 56px 72px; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 48px; align-items: center; }
-.kicker { margin: 0 0 18px; font: 600 12px var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
-h1.display { margin: 0; font: 700 clamp(40px, 6vw, 76px)/1.05 var(--font-display); letter-spacing: -.035em; text-wrap: balance; }
+/* lobby: intro, then three ways to shoot */
+.lobby { padding-block: 44px 64px; display: grid; gap: 30px; }
+.intro { max-width: 760px; }
+.kicker { margin: 0 0 16px; font: 600 12px var(--font-body); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+h1.display { margin: 0; font: 700 clamp(36px, 5.4vw, 66px)/1.06 var(--font-display); letter-spacing: -.035em; text-wrap: balance; }
 h1.display em { font-style: normal; color: var(--accent); }
-.lede { margin: 22px 0 0; font-size: 18px; color: var(--muted); max-width: 42ch; }
-.steps { margin: 26px 0 0; padding: 0; list-style: none; display: grid; gap: 10px; counter-reset: s; }
-.steps li { display: flex; gap: 12px; align-items: baseline; color: var(--muted); }
-.steps li::before { counter-increment: s; content: counter(s); font: 700 13px var(--font-display); color: var(--accent); width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--accent); display: inline-grid; place-items: center; flex: none; transform: translateY(4px); }
-.card { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 26px; display: grid; gap: 18px; }
-.card h2 { margin: 0; font: 700 22px/1.2 var(--font-display); letter-spacing: -.02em; }
+.lede { margin: 18px 0 0; font-size: 18px; color: var(--muted); max-width: 52ch; }
+.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; align-items: stretch; }
+.mode { min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 12px; align-content: start; }
+.mode.feature { border-color: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent); }
+.mode .ic { width: 46px; height: 46px; border-radius: 14px; background: var(--sunk); color: var(--accent); display: grid; place-items: center; }
+.mode .ic svg { width: 24px; height: 24px; }
+.mode h2 { margin: 0; font: 700 22px/1.2 var(--font-display); letter-spacing: -.02em; }
+.mode p { margin: 0; color: var(--muted); }
+.mode .btn { justify-self: start; }
+.mode .tag { font: 600 11px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); }
+.mode-actions { display: grid; gap: 12px; margin-top: 4px; }
 .or { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 13px; }
 .or::before, .or::after { content: ""; height: 1px; flex: 1; background: var(--line); }
 .join { display: flex; gap: 8px; }
-.code-input { flex: 1; min-width: 0; width: 0; font: 700 20px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0 18px; min-height: 52px; }
+.code-input { flex: 1; min-width: 0; width: 0; font: 700 18px var(--font-display); letter-spacing: .2em; text-transform: uppercase; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0 16px; min-height: 46px; }
 .code-input:focus { outline: none; border-color: var(--accent); }
 .note { margin: 0; font-size: 13px; color: var(--muted); }
 .note.err { color: var(--danger); }
 
-/* booth */
-.booth { padding-block: 24px 48px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 28px; align-items: start; }
+/* booth: session bar on top, camera + controls on the left, tabs + print on the right */
+.booth { padding-block: 18px 48px; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 20px 28px; align-items: start; }
+.session { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 10px 10px 18px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; }
+.sess-left { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; min-width: 0; }
+.mode-tag { font: 700 16px var(--font-display); letter-spacing: -.02em; }
+.code-wrap { display: inline-flex; align-items: center; gap: 10px; }
+.codechip { font: 700 16px var(--font-display); letter-spacing: .18em; color: var(--accent); }
+.btn.sm { min-height: 38px; padding: 0 14px; font-size: 14px; }
+.camera { min-width: 0; }
 .stage { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: #000; border-radius: 18px; overflow: hidden; aspect-ratio: 8 / 5; max-width: 100%; }
+.stage.solo { grid-template-columns: 1fr; aspect-ratio: 4 / 3; }
+.stage.solo #tileB { display: none; }
 .tile { position: relative; background: #1a1d1c; overflow: hidden; min-width: 0; }
 .tile video { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
 .tile .who { position: absolute; left: 10px; bottom: 10px; font: 600 12px var(--font-body); color: #fff; background: rgba(0,0,0,.5); padding: 4px 10px; border-radius: 999px; }
@@ -88,16 +106,22 @@ h1.display em { font-style: normal; color: var(--accent); }
 .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
 .flash.go { animation: fl .5s ease-out; }
 @keyframes fl { 0% { opacity: .95; } 100% { opacity: 0; } }
-.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
-.bar .grow { flex: 1; }
-.codechip { font: 700 15px var(--font-display); letter-spacing: .18em; color: var(--accent); }
-.status { min-height: 1.5em; margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.controls { display: flex; align-items: center; justify-content: center; gap: 14px; margin-top: 16px; }
+.btn.shoot { min-height: 60px; padding: 0 30px; font-size: 17px; }
+.btn.round { width: 50px; height: 50px; min-height: 50px; padding: 0; }
+.status { min-height: 1.5em; margin: 12px 0 0; font-size: 14px; color: var(--muted); text-align: center; }
 .status.err { color: var(--danger); }
 .thumbs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
 .thumbs div { aspect-ratio: 8 / 5; border-radius: 8px; background: var(--sunk); overflow: hidden; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+.thumbs.solo div { aspect-ratio: 4 / 3; grid-template-columns: 1fr; }
 .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; transform: scaleX(-1); }
 
-.side { display: grid; gap: 22px; min-width: 0; }
+.side { display: grid; gap: 18px; min-width: 0; }
+.tabs { display: flex; gap: 4px; padding: 4px; background: var(--sunk); border-radius: 999px; }
+.tab { flex: 1; appearance: none; border: 0; background: transparent; color: var(--muted); font: 600 14px var(--font-body); min-height: 40px; border-radius: 999px; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px var(--shadow); }
+.panel { display: grid; gap: 18px; padding: 4px 2px 0; }
 .group { display: grid; gap: 10px; }
 .group h3, .lbl { margin: 0; font: 600 11.5px var(--font-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
 .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
@@ -107,19 +131,30 @@ h1.display em { font-style: normal; color: var(--accent); }
 .chip .sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid rgba(0,0,0,.15); }
 .linkbtn { appearance: none; border: 0; background: none; color: var(--ink); font: 600 13.5px var(--font-body); cursor: pointer; padding: 6px 0; }
 .linkbtn:hover { color: var(--accent); }
+.pose-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pose-item { appearance: none; text-align: left; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; min-width: 0; }
+.pose-item:hover { border-color: var(--muted); }
+.pose-item svg { width: 44px; height: 40px; color: var(--ink); }
+.pose-item .emo { font-size: 28px; text-align: center; line-height: 1; }
+.pose-item small { display: block; font: 600 10.5px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.pose-item b { font: 700 13.5px/1.2 var(--font-display); letter-spacing: -.01em; }
 .cap { width: 100%; border: 1.5px solid var(--accent); border-radius: 14px; background: var(--surface); color: var(--ink); font: 700 19px var(--font-display); padding: 12px 14px; letter-spacing: -.02em; box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
 .cap:focus { outline: none; box-shadow: 0 0 0 5px color-mix(in srgb, var(--accent) 24%, transparent); }
 .check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
 .check input { width: 16px; height: 16px; accent-color: var(--accent); }
-.print-box { background: var(--sunk); border-radius: 16px; padding: 18px; display: grid; justify-items: center; gap: 14px; }
+.print-box { background: var(--sunk); border-radius: 16px; padding: 16px 18px 18px; display: grid; justify-items: center; gap: 14px; }
+.print-box .row { width: 100%; }
 #strip { display: block; max-width: 100%; height: auto; width: 100%; box-shadow: 0 1px 2px var(--shadow), 0 24px 50px -22px var(--shadow); border-radius: 2px; }
 #strip.strip { width: min(100%, 300px); } #strip.polaroid { width: min(100%, 420px); }
 .print-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
 
 @media (max-width: 900px) {
-  .lobby { grid-template-columns: minmax(0, 1fr); padding-top: 32px; gap: 28px; }
-  .booth { grid-template-columns: minmax(0, 1fr); padding-top: 14px; }
+  .lobby { padding-top: 28px; gap: 24px; }
+  .modes { grid-template-columns: minmax(0, 1fr); }
+  .booth { grid-template-columns: minmax(0, 1fr); padding-top: 12px; }
   .stage { aspect-ratio: 4 / 5; border-radius: 14px; }
+  .stage.solo { aspect-ratio: 3 / 4; }
+  .session { padding: 10px 10px 10px 14px; }
 }
 @media (prefers-reduced-motion: reduce) { .count, .flash.go { animation: none; } }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -127,82 +162,115 @@ h1.display em { font-style: normal; color: var(--accent); }
 </head>
 <body>
 <nav class="nav"><div class="wrap nav-in">
-  <a class="mark" href="./">Flashbulb <i>live</i><span class="dot" aria-hidden="true"></span></a>
+  <a class="mark" href="./">Flashbulb <i>booth</i><span class="dot" aria-hidden="true"></span></a>
   <span class="pill" id="pill" hidden title="Connection with your partner"><i></i><span id="pillText">Waiting for your partner</span></span>
 </div></nav>
 
 <main>
   <section class="wrap lobby" id="lobby">
-    <div>
-      <p class="kicker">A photo booth for two, wherever you are</p>
-      <h1 class="display">See each other. <em>Pose together.</em></h1>
-      <p class="lede">Open a live booth, send your partner the code, and take a four-shot strip together while you watch each other's cameras.</p>
-      <ol class="steps">
-        <li>Start a booth and send the code or link.</li>
-        <li>Your partner joins. You see and hear each other.</li>
-        <li>Tap Start. You both get the same pose, the same countdown, and one shared print.</li>
-      </ol>
+    <header class="intro">
+      <p class="kicker">A photo booth in your browser</p>
+      <h1 class="display">Strike a pose. <em>Keep the strip.</em></h1>
+      <p class="lede">Shoot on your own, or with someone far away while you see each other live. Every booth has pose cards, a 3‑2‑1 countdown and one printed strip at the end.</p>
+    </header>
+    <div class="modes">
+      <article class="mode">
+        <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>
+        <span class="tag">Works offline</span>
+        <h2>Just me</h2>
+        <p>Your live camera, a pose for each shot, a countdown and one print. No partner or internet needed.</p>
+        <button class="btn accent" id="soloBtn" type="button">Start shooting</button>
+      </article>
+      <article class="mode feature">
+        <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3.5"/><circle cx="17" cy="9" r="3"/><path d="M2 20a6 6 0 0 1 12 0M13 20a4.5 4.5 0 0 1 9 0"/></svg></span>
+        <span class="tag">Live, needs internet</span>
+        <h2>Together</h2>
+        <p>See and hear each other live, pose together, and both get the same print.</p>
+        <div class="mode-actions">
+          <button class="btn solid" id="startBtn" type="button">Start a booth</button>
+          <div class="or">or join with a code</div>
+          <div class="join">
+            <input class="code-input" id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Booth code from your partner">
+            <button class="btn" id="joinBtn" type="button">Join</button>
+          </div>
+          <p class="note" id="togetherNote">Wi-Fi gives the smoothest video.</p>
+        </div>
+      </article>
+      <article class="mode">
+        <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg></span>
+        <span class="tag">Works offline</span>
+        <h2>Use my photos</h2>
+        <p>Already took your pictures? Turn photos from your gallery into a strip with the same looks.</p>
+        <a class="btn" href="solo/">Open the strip maker</a>
+      </article>
     </div>
-    <div class="card">
-      <h2>Open the booth</h2>
-      <button class="btn accent lg" id="startBtn" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 10l5-3v10l-5-3z"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
-        Start a booth
-      </button>
-      <div class="or">or join your partner</div>
-      <div class="join">
-        <input class="code-input" id="joinCode" maxlength="6" placeholder="CODE" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Booth code from your partner">
-        <button class="btn solid" id="joinBtn" type="button">Join</button>
-      </div>
-      <p class="note" id="lobbyNote">Allow your camera and microphone when asked. Wi-Fi gives the smoothest video.</p>
-      <p class="note">Shooting alone? Try the <a href="solo/">solo booth</a>.</p>
-    </div>
+    <p class="note" id="lobbyNote">Allow your camera when your browser asks.</p>
   </section>
 
   <section class="wrap booth" id="booth" hidden>
-    <div>
+    <div class="session">
+      <div class="sess-left">
+        <span class="mode-tag" id="modeTag">Together</span>
+        <span class="code-wrap" id="codeWrap"><span class="lbl">Code</span><b class="codechip" id="codeChip">------</b><button class="btn sm" id="shareBtn" type="button">Share link</button></span>
+      </div>
+      <button class="btn sm" id="leaveBtn" type="button">Leave</button>
+    </div>
+
+    <div class="camera">
       <div class="stage" id="stage">
-        <div class="tile"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
-        <div class="tile"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
+        <div class="tile" id="tileA"><video id="vidA" playsinline autoplay></video><div class="waiting" id="waitA"></div><span class="who" id="whoA">You</span></div>
+        <div class="tile" id="tileB"><video id="vidB" playsinline autoplay></video><div class="waiting" id="waitB"></div><span class="who" id="whoB">Partner</span></div>
         <div class="overlay" id="overlay"></div>
         <div class="flash" id="flash"></div>
       </div>
-      <div class="bar">
-        <button class="btn accent lg" id="shootBtn" type="button" disabled>
+      <div class="controls">
+        <button class="btn round" id="micBtn" type="button" aria-label="Mute microphone" title="Microphone">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
+        </button>
+        <button class="btn accent shoot" id="shootBtn" type="button" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
           <span id="shootLabel">Start 4 shots</span>
         </button>
-        <button class="btn icon" id="micBtn" type="button" aria-label="Mute microphone" title="Microphone">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>
-        </button>
-        <button class="btn icon" id="flipBtn" type="button" aria-label="Switch camera" title="Switch camera">
+        <button class="btn round" id="flipBtn" type="button" aria-label="Switch camera" title="Switch camera">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5-2.2M15 13a3 3 0 0 1-5 2.2M14 9v2h-2M10 17v-2h2"/></svg>
         </button>
-        <span class="grow"></span>
-        <span class="lbl">Code</span><span class="codechip" id="codeChip">------</span>
-        <button class="btn" id="shareBtn" type="button">Share link</button>
-        <button class="btn" id="leaveBtn" type="button">Leave</button>
       </div>
       <p class="status" id="status" role="status" aria-live="polite"></p>
       <div class="thumbs" id="thumbs" aria-label="Shots taken"></div>
     </div>
 
     <aside class="side" aria-label="Booth settings">
-      <div class="group"><h3>Layout</h3><div class="chips" id="layouts"></div></div>
-      <div class="group"><h3>Film</h3><div class="chips" id="films"></div></div>
-      <div class="group"><h3>Frame &amp; season</h3><div class="chips" id="looks"></div></div>
-      <div class="group">
-        <div class="row"><h3>Poses</h3><button class="linkbtn" id="newPoses" type="button">New poses</button></div>
-        <div class="chips" id="poseModes"></div>
+      <div class="tabs" role="tablist" aria-label="Settings">
+        <button class="tab" role="tab" id="tabBtn-look" aria-controls="tab-look" aria-selected="true" type="button">Look</button>
+        <button class="tab" role="tab" id="tabBtn-poses" aria-controls="tab-poses" aria-selected="false" type="button">Poses</button>
+        <button class="tab" role="tab" id="tabBtn-caption" aria-controls="tab-caption" aria-selected="false" type="button">Caption</button>
+      </div>
+      <div class="panel" id="tab-look" role="tabpanel" aria-labelledby="tabBtn-look">
+        <div class="group"><h3>Layout</h3><div class="chips" id="layouts"></div></div>
+        <div class="group"><h3>Film</h3><div class="chips" id="films"></div></div>
+        <div class="group"><h3>Frame</h3><div class="chips" id="looks"></div></div>
+        <div class="group"><h3>Season</h3><div class="chips" id="seasons"></div></div>
+      </div>
+      <div class="panel" id="tab-poses" role="tabpanel" aria-labelledby="tabBtn-poses" hidden>
+        <div class="group"><h3>Pose guide</h3><div class="chips" id="poseModes"></div></div>
+        <div class="group" id="poseListGroup">
+          <div class="row"><h3>Coming up</h3><button class="linkbtn" id="newPoses" type="button">New poses</button></div>
+          <div class="pose-list" id="poseList"></div>
+          <p class="note">Tap a pose to swap it.</p>
+        </div>
         <label class="check"><input type="checkbox" id="posePrint" checked> Print poses beside photos</label>
       </div>
-      <div class="group">
-        <div class="row"><label class="lbl" for="caption">Caption on your print</label><span class="note" id="capCount">13/28</span></div>
-        <input class="cap" id="caption" maxlength="28" value="Miles apart" autocomplete="off">
+      <div class="panel" id="tab-caption" role="tabpanel" aria-labelledby="tabBtn-caption" hidden>
+        <div class="group">
+          <div class="row"><label class="lbl" for="caption">Caption on your print</label><span class="note" id="capCount">13/28</span></div>
+          <input class="cap" id="caption" maxlength="28" value="Miles apart" autocomplete="off">
+        </div>
         <label class="check"><input type="checkbox" id="capHl" checked> Highlight caption</label>
+        <label class="check"><input type="checkbox" id="showDate" checked> Print the date</label>
       </div>
       <div class="print-box">
-        <canvas id="strip" class="strip" role="img" aria-label="Your shared print"></canvas>
+        <div class="row"><h3 class="lbl">Your print</h3></div>
+        <canvas id="strip" class="strip" role="img" aria-label="Your print"></canvas>
         <div class="print-actions">
           <button class="btn solid" id="saveBtn" type="button">Save print</button>
           <button class="btn" id="shareImgBtn" type="button" hidden>Share print</button>
@@ -322,7 +390,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .92; ctx.fillRect(rect.x, rect.y, rect.w, rect.h); }
     ctx.fillStyle = frame.ink; ctx.globalAlpha = .06; ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.globalAlpha = .55; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-    const label = !state.duo ? `TAP TO ADD SHOT ${i + 1}` : side === mySide ? `YOUR SHOT ${i + 1}` : `PARTNER ${i + 1}`;
+    const label = !state.duo ? `SHOT ${i + 1}` : side === mySide ? `YOUR SHOT ${i + 1}` : `PARTNER ${i + 1}`;
     let size = Math.round(rect.h * .07);
     ctx.font = `500 ${size}px "Urbanist", sans-serif`;
     while (ctx.measureText(label).width > rect.w - 16 && size > 9) { size--; ctx.font = `500 ${size}px "Urbanist", sans-serif`; }
@@ -610,43 +678,74 @@ h1.display em { font-style: normal; color: var(--accent); }
     Object.entries(FILTERS).forEach(([k, v]) => fl.appendChild(chip(v, state.filter === k, () => { state.filter = k; changed(); })));
     const lk = $("looks"); lk.innerHTML = "";
     FRAMES.forEach((f, i) => lk.appendChild(chip(f.name, state.theme === "none" && state.frame === i, () => { state.frame = i; state.theme = "none"; changed(); }, f.bg)));
-    Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) lk.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
+    const se = $("seasons"); se.innerHTML = "";
+    se.appendChild(chip("None", state.theme === "none", () => { state.theme = "none"; changed(); }));
+    Object.entries(THEMES).forEach(([k, t]) => { if (t.bg) se.appendChild(chip(t.label + (k === seasonNow() ? " ✦" : ""), state.theme === k, () => { state.theme = k; changed(); }, t.bg[0])); });
     const pm = $("poseModes"); pm.innerHTML = "";
     [["off", "Off"], ["classic", "Classic"], ["meme", "Meme"]].forEach(([k, l]) => pm.appendChild(chip(l, poseMode === k, () => { poseMode = k; changed(); })));
-    $("newPoses").hidden = poseMode === "off";
-    $("posePrint").checked = posePrint; $("capHl").checked = state.capHl;
+    $("poseListGroup").hidden = poseMode === "off";
+    renderPoseList();
+    $("posePrint").checked = posePrint; $("capHl").checked = state.capHl; $("showDate").checked = state.showDate;
     if (document.activeElement !== $("caption")) $("caption").value = state.caption;
     $("capCount").textContent = `${state.caption.length}/28`;
     const n = LAYOUTS[state.layout].n;
     $("shootLabel").textContent = busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
   }
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
+  function renderPoseList() {
+    const n = LAYOUTS[state.layout].n, box = $("poseList"); box.innerHTML = "";
+    if (poseMode === "off") return;
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "pose-item";
+      let art, name;
+      if (poseMode === "meme") { const f = MEME[picks.meme[i]]; art = figureSVG(f); name = f.name; }
+      else { const c = CLASSIC[picks.classic[i]]; art = `<span class="emo" aria-hidden="true">${c[0]}</span>`; name = c[1]; }
+      b.innerHTML = `${art}<span><small>Shot ${i + 1}</small><b></b></span>`;
+      b.querySelector("b").textContent = name;
+      b.setAttribute("aria-label", `Shot ${i + 1}: ${name}. Tap to swap.`);
+      b.addEventListener("click", () => {
+        const list = picks[poseMode], len = poseMode === "meme" ? MEME.length : CLASSIC.length;
+        for (let k = 1; k <= len; k++) { const c = (list[i] + k) % len; if (!list.includes(c)) { list[i] = c; break; } }
+        changed();
+      });
+      box.appendChild(b);
+    }
+  }
+  // settings tabs (remembered on this device)
+  function showTab(name) {
+    ["look", "poses", "caption"].forEach((t) => { $("tab-" + t).hidden = t !== name; $("tabBtn-" + t).setAttribute("aria-selected", String(t === name)); });
+    try { localStorage.setItem("fb-tab", name); } catch {}
+  }
+  ["look", "poses", "caption"].forEach((t) => $("tabBtn-" + t).addEventListener("click", () => showTab(t)));
+  try { const t = localStorage.getItem("fb-tab"); if (t === "look" || t === "poses" || t === "caption") showTab(t); } catch {}
+  $("showDate").addEventListener("change", (e) => { state.showDate = e.target.checked; changed(); });
   $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
   $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
   $("posePrint").addEventListener("change", (e) => { posePrint = e.target.checked; changed(); });
-  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); changed(); setStatus("New poses for both of you."); });
+  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
 
   function renderThumbs() {
     const n = LAYOUTS[state.layout].n, box = $("thumbs"); box.innerHTML = "";
+    box.classList.toggle("solo", solo);
     for (let i = 0; i < n; i++) {
       const d = document.createElement("div");
-      ["A", "B"].forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; d.appendChild(im); } else d.appendChild(document.createElement("span")); });
+      (solo ? ["A"] : ["A", "B"]).forEach((sd) => { const p = sideArr(sd)[i]; if (p) { const im = document.createElement("img"); im.src = p.thumb; im.alt = `Shot ${i + 1}, ${sd === mySide ? "you" : "partner"}`; d.appendChild(im); } else d.appendChild(document.createElement("span")); });
       box.appendChild(d);
     }
   }
 
   /* ---------- camera ---------- */
-  let localStream = null, facing = "user", micOn = true;
-  async function openCamera() {
+  let localStream = null, facing = "user", micOn = true, solo = false;
+  async function openCamera(withAudio = true) {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw Object.assign(new Error("nomedia"), { name: "NoMedia" });
     return navigator.mediaDevices.getUserMedia({
       video: { facingMode: facing, width: { ideal: 1280 }, height: { ideal: 960 } },
-      audio: { echoCancellation: true, noiseSuppression: true },
+      audio: withAudio ? { echoCancellation: true, noiseSuppression: true } : false,
     });
   }
   function cameraError(e) {
     const n = e && e.name;
-    if (n === "NotAllowedError") return "Camera access was blocked. Allow camera and microphone for this site in your browser settings, then try again.";
+    if (n === "NotAllowedError") return solo ? "Camera access was blocked. Allow the camera for this site in your browser settings, then try again." : "Camera access was blocked. Allow camera and microphone for this site in your browser settings, then try again.";
     if (n === "NotFoundError" || n === "OverconstrainedError") return "No camera was found on this device.";
     if (n === "NoMedia") return "This browser can't use the camera here. Open the booth over https in Chrome, Safari or Edge.";
     if (n === "NotReadableError") return "Another app is using your camera. Close it and try again.";
@@ -659,6 +758,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     $(mySide === "A" ? "whoA" : "whoB").textContent = "You";
     $(mySide === "A" ? "whoB" : "whoA").textContent = "Partner";
     $(mySide === "A" ? "waitA" : "waitB").hidden = true;
+    if (solo) return;
     const w = $(mySide === "A" ? "waitB" : "waitA"); w.hidden = false; w.textContent = "Waiting for your partner to join…";
   }
   function showRemote(stream) {
@@ -713,8 +813,20 @@ h1.display em { font-style: normal; color: var(--accent); }
   }
   function enterBooth() {
     $("lobby").hidden = true; $("booth").hidden = false;
+    state.duo = !solo;
+    $("stage").classList.toggle("solo", solo);
+    $("modeTag").textContent = solo ? "Just me" : "Together";
+    $("codeWrap").hidden = solo; $("micBtn").hidden = solo;
+    if (solo) { $("pill").hidden = true; $("shootBtn").disabled = false; }
     $("codeChip").textContent = code; showLocal(); buildUI(); render(); renderThumbs();
     if (navigator.share) $("shareImgBtn").hidden = false;
+    window.scrollTo(0, 0);
+  }
+  async function startSolo() {
+    solo = true; busyBtns(true); $("soloBtn").disabled = true; lobbyNote("Starting your camera…");
+    try { localStream = await openCamera(false); } catch (e) { busyBtns(false); $("soloBtn").disabled = false; lobbyNote(cameraError(e), true); solo = false; return; }
+    mySide = "A"; enterBooth();
+    setStatus(LAYOUTS[state.layout].n === 1 ? "Tap Take the shot when you're ready." : "Tap Start when you're ready. You'll get a pose and a countdown for each shot.");
   }
   function lobbyNote(msg, err) { const n = $("lobbyNote"); n.textContent = msg; n.classList.toggle("err", !!err); }
   function busyBtns(on) { ["startBtn", "joinBtn"].forEach((id) => { $(id).disabled = on; }); }
@@ -791,7 +903,7 @@ h1.display em { font-style: normal; color: var(--accent); }
   /* ---------- settings sync ---------- */
   function settingsPayload() {
     return { layout: state.layout, filter: state.filter, frame: state.frame, theme: state.theme, caption: state.caption,
-      capHl: state.capHl, poseMode, posePrint, picks: { classic: picks.classic.slice(), meme: picks.meme.slice() } };
+      capHl: state.capHl, showDate: state.showDate, poseMode, posePrint, picks: { classic: picks.classic.slice(), meme: picks.meme.slice() } };
   }
   function sendSettings() { send({ t: "settings", s: settingsPayload() }); }
   let capTimer; function sendSettingsSoon() { clearTimeout(capTimer); capTimer = setTimeout(sendSettings, 350); }
@@ -804,6 +916,7 @@ h1.display em { font-style: normal; color: var(--accent); }
     if (THEMES[d.theme]) state.theme = d.theme;
     if (typeof d.caption === "string" && document.activeElement !== $("caption")) state.caption = d.caption.slice(0, 28);
     if (typeof d.capHl === "boolean") state.capHl = d.capHl;
+    if (typeof d.showDate === "boolean") state.showDate = d.showDate;
     if (["off", "classic", "meme"].includes(d.poseMode)) poseMode = d.poseMode;
     if (typeof d.posePrint === "boolean") posePrint = d.posePrint;
     if (d.picks) { if (okPicks(d.picks.classic, CLASSIC.length)) picks.classic = d.picks.classic.slice(); if (okPicks(d.picks.meme, MEME.length)) picks.meme = d.picks.meme.slice(); }
@@ -869,12 +982,12 @@ h1.display em { font-style: normal; color: var(--accent); }
       if (mine) { sideArr(mySide)[i] = toShot(mine); send({ t: "shot", i, img: encode(mine) }); }
       render(); renderThumbs();
       const idx = i;
-      setTimeout(() => { // backup: if the partner's photo never arrives, use a frame from their live video
+      if (!solo) setTimeout(() => { // backup: if the partner's photo never arrives, use a frame from their live video
         if (!sideArr(otherSide())[idx] && remoteVideo().srcObject) { const c = frameFrom(remoteVideo(), !partnerFront); if (c) { sideArr(otherSide())[idx] = toShot(c); render(); renderThumbs(); } }
       }, 6000);
       await sleep(900);
     }
-    busy = false; $("shootBtn").disabled = !(conn && conn.open); buildUI();
+    busy = false; $("shootBtn").disabled = solo ? false : !(conn && conn.open); buildUI();
     setStatus("Done! Your print is ready. Save it, or tap Start to shoot again.");
     $("strip").scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
@@ -918,12 +1031,22 @@ h1.display em { font-style: normal; color: var(--accent); }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
   window.addEventListener("pagehide", stopAll);
 
+  $("soloBtn").addEventListener("click", startSolo);
   $("startBtn").addEventListener("click", startBooth);
   $("joinBtn").addEventListener("click", joinBooth);
   $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
   const pre = (params.get("join") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
   if (pre) { $("joinCode").value = pre; lobbyNote("Your partner invited you. Tap Join and allow your camera."); $("joinBtn").focus(); }
   if (!window.isSecureContext) lobbyNote("Open this page over https (a secure link) so the camera can turn on.", true);
+  function onlineState() {
+    const off = !navigator.onLine;
+    ["startBtn", "joinBtn", "joinCode"].forEach((id) => { $(id).disabled = off; });
+    const n = $("togetherNote"); n.textContent = off ? "You're offline. Together needs internet, but Just me and Use my photos still work." : "Wi-Fi gives the smoothest video.";
+    n.classList.toggle("err", off);
+  }
+  window.addEventListener("online", onlineState); window.addEventListener("offline", onlineState); onlineState();
+  // keep the booth available offline after the first visit
+  if ("serviceWorker" in navigator && window.isSecureContext && !params.get("nosw")) navigator.serviceWorker.register("sw.js").catch(() => {});
 
   buildUI(); render();
   if (document.fonts && document.fonts.load) Promise.all([document.fonts.load('700 42px "Comfortaa"'), document.fonts.load('500 16px "Urbanist"')]).then(render, () => {});
