@@ -25,7 +25,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 ### Together, step by step
 
 1. **Start a booth.** Choose your look, tap **Open my booth** and allow your camera and microphone. You get a 6‑letter code and a **Share link** button.
-2. **Your partner joins** from the link, or by typing the code and tapping **Join**.
+2. **Your partner joins** from the link: it opens with a big **Join booth** button at the top. They can also type the code on the start page and tap **Join**.
 3. **See each other live.** You're on the left and your partner is on the right. Use the mic button to mute, and the camera button to switch between front and back cameras.
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
 5. **Save the print**. **Share print** sends it straight to apps on your phone.

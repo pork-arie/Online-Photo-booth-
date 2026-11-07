@@ -689,8 +689,8 @@
     mySide = "A"; enterBooth();
     setStatus(LAYOUTS[state.layout].n === 1 ? "Tap Take the shot when you're ready." : "Tap Start when you're ready. You'll get a pose and a countdown for each shot.");
   }
-  function lobbyNote(msg, err) { ["lobbyNote", "setupNote"].forEach((id) => { const n = $(id); n.textContent = msg; n.classList.toggle("err", !!err); }); }
-  function busyBtns(on) { ["startBtn", "joinBtn", "startCamBtn"].forEach((id) => { $(id).disabled = on; }); }
+  function lobbyNote(msg, err) { ["lobbyNote", "setupNote", "inviteNote"].forEach((id) => { const n = $(id); n.textContent = msg; n.classList.toggle("err", !!err); }); }
+  function busyBtns(on) { ["startBtn", "joinBtn", "startCamBtn", "inviteJoin"].forEach((id) => { $(id).disabled = on; }); }
 
   const inBooth = () => !$("booth").hidden && $("booth").dataset.view !== "setup"; // past the setup step, camera on
   async function startBooth() {
@@ -736,7 +736,7 @@
         if (inBooth()) return;
         lobbyNote("Connecting to your partner…");
         const dc = guestConnect();
-        const t = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) { lobbyNote("Couldn't reach that booth. Check the code, and make sure your partner's booth is still open.", true); busyBtns(false); stopAll(); } }, 15000);
+        const t = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) { lobbyNote(hasRelay() ? "Found your partner's booth, but couldn't connect. Check both of your internet connections and try again." : "Found your partner's booth, but your phones couldn't connect directly. This often happens on mobile data: try both of you on Wi-Fi.", true); busyBtns(false); stopAll(); } }, 25000);
         dc.on("open", () => { clearTimeout(t); if (!inBooth()) enterBooth(); });
       });
       p.on("error", (e) => {
@@ -1137,7 +1137,10 @@
   $("joinCode").addEventListener("keydown", (e) => { if (e.key === "Enter") joinBooth(); });
   if (params.get("mode") === "photos") startPhotos();
   const pre = (params.get("join") || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-  if (pre) { $("joinCode").value = pre; lobbyNote("Your partner invited you. Tap Join and allow your camera."); $("joinBtn").focus(); }
+  if (pre) { // opened from an invite link: put Join front and centre, so nobody starts a second booth by mistake
+    $("joinCode").value = pre; $("inviteCode").textContent = pre; $("invite").hidden = false;
+    $("inviteJoin").addEventListener("click", joinBooth); $("inviteJoin").focus();
+  }
   if (!window.isSecureContext) lobbyNote("Open this page over https (a secure link) so the camera can turn on.", true);
   function onlineState() {
     const off = !navigator.onLine;

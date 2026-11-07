@@ -80,6 +80,7 @@ async function makeFaceVideo(browser) {
   const A = await mk('A', { width: 1280, height: 900 });
   await A.goto('http://localhost:8080/index.html' + q); await A.waitForTimeout(500);
   await A.screenshot({ path: OUT + '/lobby.png' });
+  check('No invite banner without an invite link', await A.isHidden('#invite'));
   check('Start page hides the connection label', !(await A.isVisible('#pill')));
   await A.click('#startBtn');
   await A.waitForSelector('#booth[data-view="setup"]', { timeout: 5000 });
@@ -95,7 +96,9 @@ async function makeFaceVideo(browser) {
   const B = await mk('B', { width: 390, height: 844 });
   await B.goto('http://localhost:8080/index.html' + q + '&join=' + code); await B.waitForTimeout(500);
   check('Invite link pre-fills the code', (await B.inputValue('#joinCode')) === code);
-  await B.click('#joinBtn');
+  check('Invite link shows a clear Join booth button at the top', await B.isVisible('#invite') && (await B.textContent('#inviteCode')) === code && await B.isVisible('#inviteJoin'));
+  await B.screenshot({ path: OUT + '/invite-phone.png' });
+  await B.click('#inviteJoin');
   await B.waitForSelector('#booth:not([hidden])', { timeout: 20000 });
   await A.waitForFunction(() => document.getElementById('vidB').videoWidth > 0, null, { timeout: 20000 }).catch(() => {});
   await B.waitForFunction(() => document.getElementById('vidA').videoWidth > 0, null, { timeout: 20000 }).catch(() => {});

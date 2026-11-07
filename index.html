@@ -33,6 +33,15 @@
 
 <main>
   <section class="wrap lobby" id="lobby">
+    <div class="invite" id="invite" hidden>
+      <div class="invite-text">
+        <p class="kicker">You're invited</p>
+        <h2>Your partner's booth is waiting</h2>
+        <p>Booth code <b id="inviteCode"></b>. Tap <b>Join booth</b>, then allow your camera and microphone.</p>
+      </div>
+      <button class="btn solid invite-btn" id="inviteJoin" type="button">Join booth</button>
+      <p class="note" id="inviteNote"></p>
+    </div>
     <div class="hero">
       <header class="intro">
         <p class="kicker">A photo booth in your browser</p>
