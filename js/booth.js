@@ -767,6 +767,13 @@
     }
     if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
     const secs = Math.round((Date.now() - joinStart) / 1000);
+    // The booth answered and the devices are still finding a way to each other (this can take a while across
+    // different networks): let that attempt finish instead of starting over.
+    const pc = conn && conn.peerConnection, ice = pc && pc.iceConnectionState;
+    if (pc && pc.remoteDescription && ice !== "failed" && ice !== "closed") {
+      lobbyNote(`Still connecting… (${secs}s) Your partner's booth answered; your devices are finding a way to each other.`);
+      clearTimeout(knockT); knockT = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) knock(); }, 5000); return;
+    }
     if (secs >= 9) lobbyNote(`Still connecting… (${secs}s) Your partner's booth is open, but your devices haven't linked up yet.${hasRelay() ? "" : " If this keeps going, your two internet connections can't link directly: try the same Wi-Fi, or add a relay server."}`);
     if (conn && !conn.open) { const old = conn; conn = null; try { old.close(); } catch (e) {} } // drop the knock that went unanswered
     clearTimeout(knockT); knockT = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) knock(); }, 10000); // no answer yet: try a fresh connection
