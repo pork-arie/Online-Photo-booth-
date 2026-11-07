@@ -129,7 +129,7 @@ async function makeFaceVideo(browser) {
   check('Film + caption sync host -> partner', (await B.locator('#films [aria-pressed=true]').textContent()) === 'Silver' && (await B.inputValue('#caption')) === 'Miss you, love');
   await A.locator('#films .chip', { hasText: 'Natural' }).click(); await A.waitForTimeout(400);
   // duo poses: two figures, labelled so each person knows their half
-  check('Together starts with Duo poses', (await A.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Duo') && (await A.locator('#poseRail .rail-card.duo svg.duo').count()) === 4);
+  check('Together starts with Duo poses', (await A.locator('#poseFor [aria-pressed=true]').textContent()).startsWith('Duo') && (await A.locator('#poseRail .rail-card.duo img.meme.duo').count()) === 4);
   check('Host sees You on the left, Partner on the right', (await A.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'You|Partner');
   const bt = await B.evaluate(() => { const a = document.getElementById('tileA').getBoundingClientRect(); return Math.round(a.width); });
   check('Phone Together: each camera gets half the screen', bt >= 160, `${bt}px per camera`);
@@ -269,6 +269,9 @@ async function makeFaceVideo(browser) {
   const firstPose = await J.locator('#poseList .pose-item b').first().textContent();
   await J.locator('#poseList .pose-swap').first().click();
   check('↻ swaps a pose', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
+  await J.waitForFunction(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 5000 }).catch(() => {});
+  check('Meme poses are real meme pictures (no drawings)', (await J.locator('#poseRail img.meme').count()) === 4 && (await J.locator('#poseRail svg').count()) === 0 && await J.evaluate(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 100)));
+  check('The meme pictures are printed beside the photos', await J.evaluate(() => { const c = document.getElementById('strip'), g = c.getContext('2d'), w = c.width; const d = g.getImageData(Math.round(w * .7), 0, Math.round(w * .25), c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4 * 7) seen.add((d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4)); return seen.size > 300; }));
   check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
   await J.locator('#poseList .pose-sel').nth(2).click();
   check('Picking a pose in the list shows it beside the camera', (await J.locator('#poseRail .rail-card').nth(2).getAttribute('aria-pressed')) === 'true');

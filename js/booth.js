@@ -1,7 +1,7 @@
 // Flashbulb booth: camera, connection, shooting, print, exports.
 (() => {
   const { DESIGNS, DESIGN_FONTS } = window.FB;
-  const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, figureBody, SVG_OPEN, figureSVG, duoSVG, DOWN_L, MEME_DUO, CLASSIC_DUO, DOWN_R, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
+  const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, MEME_DUO, CLASSIC_DUO, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
   const state = {
     photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
     layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true, design: "modern",
@@ -99,12 +99,12 @@
 
   const artCache = new Map();
   function poseArt(idx, frame, duo) {
-    const f = duo ? MEME_DUO[idx] : MEME[idx], key = f.img ? f.img : `${duo ? "d" : "s"}${idx}|${frame.ink}|${frame.bg}`;
+    const f = duo ? MEME_DUO[idx] : MEME[idx], key = f.img;
     let e = artCache.get(key);
     if (!e) {
       const im = new Image(); e = { im, ready: false }; artCache.set(key, e);
       im.onload = () => { e.ready = true; render(); };
-      im.src = f.img || ("data:image/svg+xml;charset=utf-8," + encodeURIComponent(duo ? duoSVG(f, frame.ink, frame.ink, frame.bg) : figureSVG(f, frame.ink, frame.bg)));
+      im.src = f.img;
     }
     return e.ready ? e.im : null;
   }
@@ -120,7 +120,10 @@
     const cx = r.x + r.w / 2, cy = r.y + pad + ah / 2;
     if (poseMode === "meme") {
       const im = poseArt(idx, frame, duo);
-      if (im) { const iw = im.naturalWidth || 100, ih = im.naturalHeight || 92, s = Math.min(aw / iw, ah / ih); ctx.drawImage(im, cx - iw * s / 2, cy - ih * s / 2, iw * s, ih * s); }
+      if (im) { // the meme picture, whole, with rounded corners
+        const iw = im.naturalWidth || 100, ih = im.naturalHeight || 100, s = Math.min(aw / iw, ah / ih), w = iw * s, h = ih * s, x = cx - w / 2, y = cy - h / 2;
+        ctx.save(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 10) : ctx.rect(x, y, w, h); ctx.clip(); ctx.drawImage(im, x, y, w, h); ctx.restore();
+      }
     } else {
       const text = duo ? item[0] + item[1] : item[0], size = duo ? Math.min(ah * .55, aw * .38) : Math.min(ah, aw) * .62;
       ctx.font = `${Math.round(size)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
@@ -227,14 +230,14 @@
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
   let selPose = 0; // the pose shown beside the camera
   // inks: in Together your figure is drawn in black, your partner's in green
+  const memeImg = (item, duo) => `<img class="meme${duo ? " duo" : ""}" src="${item.img}" alt="" draggable="false">`;
   function poseInfo(i, colored) {
     const key = packKey(), item = packList(key)[picks[key][i]];
     if (poseFor === "duo") {
-      const mine = "currentColor", theirs = colored && !solo ? "var(--accent)" : "currentColor";
-      if (poseMode === "meme") return { art: duoSVG(item, mySide === "A" ? mine : theirs, mySide === "A" ? theirs : mine), name: item.name, tip: item.tip, duo: true };
+      if (poseMode === "meme") return { art: memeImg(item, true), name: item.name, tip: item.tip, duo: true };
       return { art: `<span class="emo duo" aria-hidden="true">${item[0]}${item[1]}</span>`, name: item[2], tip: item[3], duo: true };
     }
-    if (poseMode === "meme") return { art: figureSVG(item), name: item.name, tip: item.tip };
+    if (poseMode === "meme") return { art: memeImg(item), name: item.name, tip: item.tip };
     return { art: `<span class="emo" aria-hidden="true">${item[0]}</span>`, name: item[1], tip: item[2] };
   }
   function pickPose(i) { selPose = i; renderRail(); renderPoseList(); }
@@ -811,7 +814,7 @@
   function poseCardHTML(i, n) {
     const head = `<small>Shot ${i + 1} of ${n}</small>`;
     if (poseMode === "off") return `<div class="pose-pop">${head}<b>Strike a pose!</b></div>`;
-    if (poseMode === "meme") { const f = MEME[picks.meme[i]]; return `<div class="pose-pop"><div class="art">${figureSVG(f, "#111413", "#ffffff")}</div>${head}<b>${f.name}</b></div>`; }
+    if (poseMode === "meme") { const f = packList()[picks[packKey()][i]]; return `<div class="pose-pop"><div class="art">${memeImg(f, poseFor === "duo")}</div>${head}<b>${f.name}</b></div>`; }
     const c = CLASSIC[picks.classic[i]]; return `<div class="pose-pop"><div class="art"><span class="emo">${c[0]}</span></div>${head}<b>${c[1]}</b></div>`;
   }
   async function runSession(local, nRemote) {

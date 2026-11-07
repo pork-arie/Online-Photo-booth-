@@ -88,9 +88,9 @@ On iPhone and iPad (Safari), **Save print** opens the share sheet: tap **Save Im
 - **Frame colors:** Paper, Onyx, Blush, Sage, Sand, Navy, used by the Classic and Modern designs
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Start page:** an illustrated photo booth with blinking bulbs, a swaying curtain, a flash and a strip coming out of the slot
-- **Pose guide:** Off, Classic (emoji poses) or Meme (line-drawn meme poses such as Time out, Begone!, Airplane and Who, me?). Poses can be printed beside each photo.
+- **Pose guide:** Off, Classic (emoji poses) or Meme: 23 solo and 20 duo meme pictures to copy, such as Time out, Big brain, Shook, Finger guns, Force push and Hold me back. Poses can be printed beside each photo.
 - **Caption** with a marker-style highlight that matches the frame colors
-- **Solo and Duo poses:** Solo poses have one figure. Duo poses have two figures side by side (Big heart, High five, Point at each other, Blow & catch, Secret and more), so in Together each person copies their half. Beside the camera your figure is black and your partner's is green, labeled You and Partner. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
+- **Solo and Duo poses:** Solo memes have one person. Duo memes have two people (Leg heart, Finger guns, Lean back, Wheelbarrow, Anime clash and more), so in Together each person copies their side, labeled You and Partner beside the camera. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
 - **Poses beside the camera:** the poses for your shots sit in a column next to the camera (on phones, in a swipeable row right under it, so the camera keeps the full width). Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
 - **White or dark:** the booth is white by default. Use the moon button at the top to switch to dark, and it remembers your choice.
 - **Settings in four tabs:** Look (layout, film, frame color), Design (styles and seasons), Poses (guide, the upcoming poses, picking one and swapping with ↻) and Caption. Before shooting they fill the screen; while shooting they're behind **Edit look**.
@@ -134,7 +134,8 @@ The booth then uses the relay only when a direct connection isn't possible. `con
 | `js/booth.js` | The app: camera, connection, shooting and the print |
 | `js/looks.js` | Layouts, film looks, frame colors and season themes |
 | `js/designs.js` | Print designs: Classic, Modern, Brutalist, Editorial, Film, Instant, Neon |
-| `js/poses.js` | Pose artwork: classic and meme, solo and duo |
+| `js/poses.js` | Pose list: classic emoji poses and meme pictures, solo and duo |
+| `assets/memes/` | The meme pose pictures (`solo/` and `duo/`) |
 | `js/stickers.js` | Face sticker artwork and placement |
 | `config.js` | Your settings: relay server and own connection server |
 | `solo/index.html` | Old link for the strip maker; it opens Use my photos |

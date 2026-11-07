@@ -340,3 +340,16 @@ h1.display em { font-style: normal; color: var(--accent); }
 .hold-sheet p { margin: 0; font: 500 16px/1.4 var(--font-body); max-width: 340px; }
 .hold-sheet img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; box-shadow: 0 20px 50px rgba(0, 0, 0, .5); -webkit-touch-callout: default; user-select: auto; -webkit-user-select: auto; }
 .hold-sheet .btn { min-width: 140px; }
+
+/* meme pose pictures beside the camera, in the Poses tab and on the pose card */
+img.meme { display: block; width: 100%; max-width: 92px; aspect-ratio: 1; object-fit: cover; border-radius: 10px; background: var(--sunk); -webkit-user-drag: none; user-select: none; }
+img.meme.duo { max-width: 128px; aspect-ratio: 4 / 3; }
+.rail-card img.meme { max-height: 100%; min-height: 0; }
+.rail-card[aria-pressed="true"] img.meme { max-width: 104px; }
+.rail-card[aria-pressed="true"] img.meme.duo { max-width: 140px; }
+.pose-sel img.meme { width: 52px; } .pose-sel img.meme.duo { width: 72px; }
+.pose-pop .art img.meme { width: 120px; max-width: 120px; }
+@media (max-width: 760px) {
+  .rail-card img.meme { max-width: 84px; } .rail-card img.meme.duo { max-width: 132px; }
+  .rail-card[aria-pressed="true"] img.meme { max-width: 90px; } .rail-card[aria-pressed="true"] img.meme.duo { max-width: 136px; }
+}
