@@ -766,6 +766,8 @@
       busyBtns(false); stopAll(); return;
     }
     if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+    const secs = Math.round((Date.now() - joinStart) / 1000);
+    if (secs >= 9) lobbyNote(`Still connecting… (${secs}s) Your partner's booth is open, but your devices haven't linked up yet.${hasRelay() ? "" : " If this keeps going, your two internet connections can't link directly: try the same Wi-Fi, or add a relay server."}`);
     if (conn && !conn.open) { const old = conn; conn = null; try { old.close(); } catch (e) {} } // drop the knock that went unanswered
     clearTimeout(knockT); knockT = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) knock(); }, 10000); // no answer yet: try a fresh connection
     try { guestConnect(); } catch (e) { /* try again on the next knock */ } // getting in happens when the link opens (see wireConn)
