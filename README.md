@@ -30,7 +30,7 @@ A photo booth in your browser. Shoot on your own, or with someone far away while
 4. **Tap Start 4 shots.** Both screens show the same pose card, count down together and flash. Each phone takes a full-quality photo from its own camera, and the two phones swap photos automatically.
 5. **Save the print**. **Share print** sends it straight to apps on your phone.
 
-If the connection drops for a moment, the booth reconnects by itself.
+If the connection drops for a moment, the booth reconnects by itself. Keep the booth page open while your partner joins: if you're away (for example, still in Messenger sending the link), their phone keeps trying for a minute and gets in as soon as you're back.
 
 ![Together: two cameras and the shared print](docs/live-booth.png)
 

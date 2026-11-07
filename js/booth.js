@@ -631,7 +631,10 @@
   }
   const serviceTrouble = (t) => t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed";
   // Keep the link to the connection service alive if it drops for a moment.
-  function keepAlive(p) { p.on("disconnected", () => { if (!leaving && !p.destroyed) setTimeout(() => { try { if (p.disconnected && !p.destroyed) p.reconnect(); } catch (e) {} }, 1500); }); }
+  // Phones pause a page in the background (for example while you send the link in Messenger). Coming back, rejoin the service at once.
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && peer && peer.disconnected && !peer.destroyed && !leaving) { try { peer.reconnect(); } catch (e) {} } });
+  let testAway = false; // tests only: hold the booth away from the service, like a phone with the page in the background
+  function keepAlive(p) { p.on("disconnected", () => { if (!leaving && !p.destroyed) setTimeout(() => { try { if (p.disconnected && !p.destroyed && !testAway) p.reconnect(); } catch (e) {} }, 1500); }); }
   /* ---------- Steps: set up your look (no camera yet) → shoot → your print drops out ---------- */
   let setupMode = null; // "solo" | "host" | "photos"
   const boothEl = $("booth");
@@ -711,7 +714,8 @@
         if (e.type !== "peer-unavailable") setStatus("Connection problem: " + e.type, true);
       });
       p.on("connection", (c) => {
-        if (conn && conn.open) { c.on("open", () => { c.send({ t: "full" }); setTimeout(() => c.close(), 500); }); return; }
+        if (conn && conn.open && c.peer !== conn.peer) { c.on("open", () => { c.send({ t: "full" }); setTimeout(() => c.close(), 500); }); return; }
+        if (conn && c.peer === conn.peer) { const old = conn; conn = null; try { old.close(); } catch (e) {} } // the same partner knocking again: use the newest link
         wireConn(c);
       });
       p.on("call", (cl) => {
@@ -728,21 +732,21 @@
     if (typeof Peer === "undefined") { lobbyNote("Couldn't load the video connection. Check your internet and reload.", true); return; }
     busyBtns(true); lobbyNote("Starting your camera…");
     try { localStream = startPipeline(await openCamera()); } catch (e) { busyBtns(false); lobbyNote(cameraError(e), true); return; }
-    mySide = "B"; code = c; leaving = false;
+    mySide = "B"; code = c; leaving = false; joinStart = 0;
     const opts = await peerOptions();
     const tryOpen = (attempt) => {
       const p = peer = new Peer(opts); keepAlive(p);
       p.on("open", () => {
-        if (inBooth()) return;
-        lobbyNote("Connecting to your partner…");
-        const dc = guestConnect();
-        const t = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) { lobbyNote(hasRelay() ? "Found your partner's booth, but couldn't connect. Check both of your internet connections and try again." : "Found your partner's booth, but your phones couldn't connect directly. This often happens on mobile data: try both of you on Wi-Fi.", true); busyBtns(false); stopAll(); } }, 25000);
-        dc.on("open", () => { clearTimeout(t); if (!inBooth()) enterBooth(); });
+        if (inBooth() || joinStart) return;
+        joinStart = Date.now(); lobbyNote("Connecting to your partner…");
+        knock();
       });
       p.on("error", (e) => {
         if (e.type === "peer-unavailable") {
           if (inBooth()) return; // reconnecting: keep trying quietly
-          lobbyNote("No booth with that code. Check it with your partner.", true); busyBtns(false); stopAll(); return;
+          // the booth isn't there right now: often your partner just switched apps to send the link. Keep knocking for a while.
+          if (Date.now() - joinStart < JOIN_WAIT) { lobbyNote("Waiting for your partner's booth… Ask them to go back to the booth page and keep it open."); clearTimeout(knockT); knockT = setTimeout(knock, 3000); return; }
+          lobbyNote("No open booth with that code. Check the code, and ask your partner to keep the booth page open on their phone.", true); busyBtns(false); stopAll(); return;
         }
         if (serviceTrouble(e.type) && !p.open && attempt < 3 && !inBooth()) {
           lobbyNote("The booth service is busy. Trying again…"); p.destroy(); setTimeout(() => tryOpen(attempt + 1), 1500 * (attempt + 1)); return;
@@ -751,6 +755,21 @@
       });
     };
     tryOpen(0);
+  }
+  // Joining: knock on the booth every few seconds for up to a minute, until the link opens.
+  const JOIN_WAIT = 60000;
+  let joinStart = 0, knockT = 0;
+  function knock() {
+    if (leaving || inBooth()) return;
+    if (Date.now() - joinStart > JOIN_WAIT) {
+      lobbyNote(hasRelay() ? "Found your partner's booth, but couldn't connect. Check both of your internet connections and try again." : "Couldn't connect to your partner's phone. Make sure their booth page is open, and try both of you on Wi-Fi.", true);
+      busyBtns(false); stopAll(); return;
+    }
+    if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
+    if (conn && !conn.open) { const old = conn; conn = null; try { old.close(); } catch (e) {} } // drop the knock that went unanswered
+    const dc = guestConnect();
+    dc.on("open", () => { clearTimeout(knockT); if (!inBooth()) enterBooth(); });
+    clearTimeout(knockT); knockT = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) knock(); }, 10000); // no answer yet: try a fresh connection
   }
   function guestConnect() {
     const dc = peer.connect(PREFIX + code, { reliable: true });
@@ -1114,8 +1133,8 @@
   });
   $("shareBtn").addEventListener("click", async () => {
     const url = `${location.origin}${location.pathname}?join=${code}`;
-    try { if (navigator.share) { await navigator.share({ title: "Join my photo booth", text: `Join my Flashbulb booth. Code: ${code}`, url }); return; } } catch (e) { if (e && e.name === "AbortError") return; }
-    try { await navigator.clipboard.writeText(url); setStatus("Link copied. Send it to your partner."); } catch { setStatus(`Send your partner this link: ${url}`); }
+    try { if (navigator.share) { await navigator.share({ title: "Join my photo booth", text: `Join my Flashbulb booth. Code: ${code}`, url }); setStatus("Sent! Keep this page open so your partner can get in."); return; } } catch (e) { if (e && e.name === "AbortError") return; }
+    try { await navigator.clipboard.writeText(url); setStatus("Link copied. Send it to your partner, then come back and keep this page open."); } catch { setStatus(`Send your partner this link: ${url}`); }
   });
 
   /* ---------- leave ---------- */
@@ -1128,7 +1147,7 @@
     cancelAnimationFrame(fxRaf);
   }
   $("leaveBtn").addEventListener("click", () => { stopAll(); location.href = location.pathname; });
-  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} } };
+  if (params.get("test") === "1") window.__fbTest = { sounds: () => soundsPlayed, drop() { try { if (conn) conn.close(); } catch (e) {} try { if (call) call.close(); } catch (e) {} }, away() { testAway = true; peer.disconnect(); }, back() { testAway = false; if (peer.disconnected) peer.reconnect(); } };
   window.addEventListener("pagehide", stopAll);
 
   $("soloBtn").addEventListener("click", () => enterSetup("solo"));

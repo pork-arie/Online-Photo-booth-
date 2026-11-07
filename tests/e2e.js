@@ -190,6 +190,22 @@ async function makeFaceVideo(browser) {
   check('Host is told partner left', (await A.textContent('#pillText')) === 'Partner left');
   check('Phone layout: no sideways scroll', (await B.evaluate(() => document.documentElement.scrollWidth)) <= 390);
   await A.close(); await B.close(); // free the test computer for the next sections
+  // ---- joining while the host is away (e.g. in Messenger sending the link): the guest keeps knocking ----
+  const H2 = await mk('AwayHost', { width: 1000, height: 800 });
+  await H2.goto('http://localhost:8080/index.html' + q); await enter(H2, '#startBtn');
+  await H2.waitForSelector('#booth[data-view="shoot"]', { timeout: 15000 });
+  const code2 = (await H2.textContent('#codeChip')).trim();
+  await H2.evaluate(() => window.__fbTest.away()); await H2.waitForTimeout(800);
+  const G2 = await mk('AwayGuest', { width: 390, height: 844 });
+  await G2.goto('http://localhost:8080/index.html' + q + '&join=' + code2); await G2.click('#inviteJoin');
+  await G2.waitForFunction(() => document.getElementById('inviteNote').textContent.includes('Waiting for your partner'), null, { timeout: 15000 }).catch(() => {});
+  check("Joining while the host's booth is away keeps waiting", (await G2.textContent('#inviteNote')).includes('Waiting for your partner') && (await view(G2)) !== 'shoot', await G2.textContent('#inviteNote'));
+  await G2.waitForTimeout(4000);
+  await H2.evaluate(() => window.__fbTest.back());
+  await G2.waitForFunction(() => document.getElementById('booth').dataset.view === 'shoot' && !document.getElementById('booth').hidden, null, { timeout: 25000 }).catch(() => {});
+  await H2.waitForFunction(() => document.getElementById('pillText').textContent === 'Connected', null, { timeout: 10000 }).catch(() => {});
+  check('When the host comes back, the partner gets in by itself', (await view(G2)) === 'shoot' && (await H2.textContent('#pillText')) === 'Connected' && (await G2.textContent('#pillText')) === 'Connected', await G2.textContent('#inviteNote'));
+  await H2.close(); await G2.close();
   // ---- Use my photos: built into the main page ----
   const S = await mk('Photos', { width: 1200, height: 900 });
   await S.goto('http://localhost:8080/index.html' + q); await S.waitForTimeout(400);
