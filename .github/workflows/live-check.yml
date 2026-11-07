@@ -1,0 +1,25 @@
+# Checks the live site with the real public connection service (two browsers, one joins the other).
+name: Check the live booth
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [tests/live-check.js, .github/workflows/live-check.yml]
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-package-lock
+      - run: npx playwright install --with-deps chromium
+      - name: Open a booth and join it on the live site
+        run: node live-check.js
