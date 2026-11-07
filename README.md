@@ -62,6 +62,12 @@ The **season** themes (Pasko, Valentine, Summer, Spring, Halloween, New Year) ar
 
 ![Design tab with previews of each style](docs/designs.png)
 
+## Meme poses
+
+Pick **Meme** in the Poses tab and every shot gets a meme to copy, shown beside the camera and printed beside your photo. Tap the grid button beside the shutter to browse them all and choose your own.
+
+![Browsing the meme poses](docs/meme-browser.png)
+
 ## Face stickers
 
 Pick a sticker under the camera and it follows your face as you move, like the filters in photo booth apps. It works with more than one face in the frame.
@@ -88,7 +94,8 @@ On iPhone and iPad (Safari), **Save print** opens the share sheet: tap **Save Im
 - **Frame colors:** Paper, Onyx, Blush, Sage, Sand, Navy, used by the Classic and Modern designs
 - **Season themes:** Pasko (parol lanterns and snow), Valentine, Summer, Spring, Halloween, New Year. The theme for the current month is marked ✦.
 - **Start page:** an illustrated photo booth with blinking bulbs, a swaying curtain, a flash and a strip coming out of the slot
-- **Pose guide:** Off, Classic (emoji poses) or Meme: 23 solo and 20 duo meme pictures to copy, such as Time out, Big brain, Shook, Finger guns, Force push and Hold me back. Poses can be printed beside each photo.
+- **Pose guide:** Off, Classic (emoji poses) or Meme: 35 one-person and 23 two-person meme pictures to copy, such as Time out, Big brain, Shook, Crying thumbs up, Finger guns, Force push and Hold me back. Poses can be printed beside each photo.
+- **Browse memes:** tap the grid button beside the shutter (or **Browse memes** in the Poses tab) to see every meme. Pick the shot at the top, then tap a meme to use it, and it moves on to the next shot. Filter by 1 person or 2 people. In Together, your partner sees your picks.
 - **Caption** with a marker-style highlight that matches the frame colors
 - **Solo and Duo poses:** Solo memes have one person. Duo memes have two people (Leg heart, Finger guns, Lean back, Wheelbarrow, Anime clash and more), so in Together each person copies their side, labeled You and Partner beside the camera. Solo also includes the two-person memes, so in Just me you can copy one side or grab a friend. Together starts with Duo and Just me with Solo, and you can switch in the Poses tab.
 - **Poses beside the camera:** the poses for your shots sit in a column next to the camera (on phones, in a swipeable row right under it, so the camera keeps the full width). Tap one to pick it. During the countdown, the current shot's pose stays there and pulses, so you can copy it while you pose.
@@ -195,6 +202,7 @@ The test starts a local web server and a local PeerJS server, opens two browsers
 - face stickers, using a fake camera made from a public-domain portrait (`tests/fixtures/`): the face is found, stickers appear, follow the face and stay steady, end up in the print, and your partner sees them
 - lighter mode still tracks faces
 - iPhone saving: Save print opens the share sheet with the picture right on the tap, and falls back to press and hold
+- Browse memes: every meme shows, the 1 person and 2 people filters, tapping a meme sets that shot and moves to the next, it syncs to your partner, and Escape and Done close it
 - Use my photos: adding photos, picking a slot, stickers placed on a face in a photo, the print dropping out once every slot is filled, saving, and the old `/solo/` link
 
 It ends with `PASS` or `FAIL` for each check. Screenshots are saved to `tests/test-output/`.

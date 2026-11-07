@@ -146,6 +146,9 @@
           <svg class="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
           <svg class="mute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
         </button>
+        <button class="btn round" id="memeBtn" type="button" aria-label="Browse memes" title="Browse memes" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </button>
         <button class="btn round" id="flipBtn" type="button" aria-label="Switch camera" title="Switch camera">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9 13a3 3 0 0 1 5-2.2M15 13a3 3 0 0 1-5 2.2M14 9v2h-2M10 17v-2h2"/></svg>
         </button>
@@ -195,7 +198,7 @@
         <div class="group"><h3>Pose guide</h3><div class="chips" id="poseModes"></div></div>
         <div class="group" id="poseForGroup"><h3>Poses for</h3><div class="chips" id="poseFor"></div></div>
         <div class="group" id="poseListGroup">
-          <div class="row"><h3>Coming up</h3><button class="linkbtn" id="newPoses" type="button">New poses</button></div>
+          <div class="row"><h3>Coming up</h3><span class="row-btns"><button class="linkbtn" id="browseMemes" type="button">Browse memes</button><button class="linkbtn" id="newPoses" type="button">New poses</button></span></div>
           <div class="pose-list" id="poseList"></div>
           <p class="note">Tap a pose to show it beside the camera. Tap ↻ to swap it for another.</p>
         </div>

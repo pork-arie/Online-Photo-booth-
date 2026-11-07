@@ -143,6 +143,12 @@ async function makeFaceVideo(browser) {
   check('Switching to Solo poses syncs to the partner', (await B.locator('#poseRail .rail-card.duo').count()) === 0 && (await B.locator('#poseRail .rail-card').count()) === 4);
   await A.locator('#poseFor .chip', { hasText: 'Duo' }).click(); await A.click('#tabBtn-look'); await closeLook(A); await A.waitForTimeout(800);
   check('Back to Duo on both', (await B.locator('#poseRail .rail-card.duo').count()) === 4);
+  // browse memes: the partner picks a duo meme for shot 1, and the host sees it
+  await B.click('#memeBtn'); await B.waitForSelector('#memeBrowser:not([hidden])', { timeout: 3000 });
+  check('Together: Browse memes shows only the two-person memes', (await B.locator('#mbGrid .mtile').count()) === 23 && await B.isHidden('#mbFilter'));
+  await B.locator('#mbShots .mb-shot').first().click();
+  await B.locator('#mbGrid .mtile', { hasText: 'Victory scream' }).click(); await B.click('#mbDone'); await A.waitForTimeout(800);
+  check('A meme picked in the browser syncs to the partner', (await A.locator('#poseRail .rail-card').first().getAttribute('title')) === 'Victory scream');
 
   // synced 4-shot session started by the partner
   await B.click('#shootBtn');
@@ -273,7 +279,7 @@ async function makeFaceVideo(browser) {
   check('↻ swaps a pose', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
   await J.waitForFunction(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 5000 }).catch(() => {});
   check('Meme poses are real meme pictures (no drawings)', (await J.locator('#poseRail img.meme').count()) === 4 && (await J.locator('#poseRail svg').count()) === 0 && await J.evaluate(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 100)));
-  check('Solo memes include the two-person pictures too', await J.evaluate(() => window.FB.MEME.length === 43 && window.FB.MEME.filter((m) => m.img.includes('/duo/')).length === 20 && window.FB.MEME_DUO.length === 20));
+  check('Solo memes include the two-person pictures too', await J.evaluate(() => window.FB.MEME.length === 58 && window.FB.MEME.filter((m) => m.img.includes('/duo/')).length === 23 && window.FB.MEME_DUO.length === 23));
   check('The meme pictures are printed beside the photos', await J.evaluate(() => { const c = document.getElementById('strip'), g = c.getContext('2d'), w = c.width; const d = g.getImageData(Math.round(w * .7), 0, Math.round(w * .25), c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4 * 7) seen.add((d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4)); return seen.size > 300; }));
   check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
   await J.locator('#poseList .pose-sel').nth(2).click();
@@ -282,6 +288,29 @@ async function makeFaceVideo(browser) {
   await J.locator('#poseRail .rail-card').nth(3).click();
   check('Tapping a pose beside the camera picks it', (await J.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && (await J.locator('#poseList .pose-item.sel b').textContent()) === (await J.locator('#poseRail .rail-card').nth(3).getAttribute('title')));
   await J.screenshot({ path: OUT + '/pose-rail.png' });
+  // browse memes in Just me
+  check('Meme button beside the camera', await J.isVisible('#memeBtn'));
+  await J.click('#memeBtn'); await J.waitForSelector('#memeBrowser:not([hidden])', { timeout: 3000 });
+  check('Browse memes shows every meme (58)', (await J.locator('#mbGrid .mtile').count()) === 58);
+  await J.locator('#mbFilter .chip', { hasText: '2 people' }).click();
+  const twoN = await J.locator('#mbGrid .mtile').count();
+  await J.locator('#mbFilter .chip', { hasText: '1 person' }).click();
+  const oneN = await J.locator('#mbGrid .mtile').count();
+  await J.locator('#mbFilter .chip', { hasText: 'All' }).click();
+  check('Filter by 1 person or 2 people', oneN === 35 && twoN === 23, `${oneN} / ${twoN}`);
+  await J.locator('#mbShots .mb-shot').first().click();
+  check('Browser shows which shot you are picking for', (await J.textContent('.mb-title')) === 'Pick a meme for shot 1');
+  await J.locator('#mbGrid .mtile', { hasText: 'Crying thumbs up' }).click(); await J.waitForTimeout(300);
+  check('Tapping a meme puts it on that shot', (await J.locator('#poseRail .rail-card').first().getAttribute('title')) === 'Crying thumbs up');
+  check('Then it moves on to the next shot', (await J.textContent('.mb-title')) === 'Pick a meme for shot 2' && (await J.locator('#mbGrid .mtile[aria-pressed=true]').count()) === 1);
+  await J.screenshot({ path: OUT + '/meme-browser.png' });
+  await J.keyboard.press('Escape');
+  check('Escape closes the browser', await J.isHidden('#memeBrowser'));
+  await openLook(J); await J.click('#tabBtn-poses');
+  check('Poses tab has Browse memes', await J.isVisible('#browseMemes'));
+  await J.click('#browseMemes'); await J.waitForSelector('#memeBrowser:not([hidden])', { timeout: 3000 });
+  await J.click('#mbDone'); await J.click('#tabBtn-look'); await closeLook(J);
+  check('Done closes the browser', await J.isHidden('#memeBrowser'));
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
   check('Countdown keeps the pose beside the camera (no pop-up)', (await J.locator('.pose-pop').count()) === 0 && await J.isVisible('#poseRail'));

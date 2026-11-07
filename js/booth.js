@@ -212,6 +212,8 @@
     [["solo", "Solo · 1 person"], ["duo", "Duo · 2 people"]].forEach(([k, l]) => pf.appendChild(chip(l, poseFor === k, () => { poseFor = k; selPose = 0; changed(); })));
     $("poseForGroup").hidden = poseMode === "off";
     $("poseListGroup").hidden = poseMode === "off";
+    $("browseMemes").hidden = poseMode !== "meme"; $("memeBtn").hidden = poseMode !== "meme"; $("memeBtn").disabled = busy;
+    if (!mb.hidden) renderBrowser();
     renderPoseList(); renderRail();
     $("posePrint").checked = posePrint; $("capHl").checked = state.capHl; $("showDate").checked = state.showDate;
     if (document.activeElement !== $("caption")) $("caption").value = state.caption;
@@ -220,6 +222,60 @@
     $("shootLabel").textContent = photosMode ? "Add photos" : busy ? "Shooting…" : n === 1 ? "Take the shot" : `Start ${n} shots`;
     if (photosMode) renderPick();
   }
+  /* ---------- Meme browser: see every meme and tap one to use it for a shot ---------- */
+  const mb = document.createElement("div"); mb.className = "meme-browser"; mb.id = "memeBrowser"; mb.hidden = true;
+  mb.setAttribute("role", "dialog"); mb.setAttribute("aria-modal", "true"); mb.setAttribute("aria-label", "Browse memes");
+  mb.innerHTML = `<div class="mb-panel"><div class="mb-head"><div><p class="kicker">Meme poses</p><h2 class="mb-title">Pick a meme</h2></div>
+    <button class="btn" type="button" id="mbDone">Done</button></div>
+    <div class="mb-shots" id="mbShots" role="tablist" aria-label="Which shot"></div>
+    <div class="chips mb-filter" id="mbFilter"></div>
+    <div class="mb-grid" id="mbGrid"></div></div>`;
+  document.body.appendChild(mb);
+  let browseShot = 0, browseFilter = "all";
+  function openBrowser(i) {
+    if (poseMode !== "meme") { poseMode = "meme"; changed(); }
+    browseShot = Math.min(i ?? selPose, LAYOUTS[state.layout].n - 1);
+    mb.hidden = false; document.body.classList.add("mb-open"); renderBrowser();
+    const sel = mb.querySelector('.mtile[aria-pressed="true"]'); if (sel) sel.scrollIntoView({ block: "center" });
+  }
+  function closeBrowser() { mb.hidden = true; document.body.classList.remove("mb-open"); }
+  function renderBrowser() {
+    const n = LAYOUTS[state.layout].n, duo = poseFor === "duo", list = duo ? MEME_DUO : MEME, key = packKey(), cur = picks[key];
+    if (browseShot >= n) browseShot = 0;
+    mb.querySelector(".mb-title").textContent = n === 1 ? "Pick a meme" : `Pick a meme for shot ${browseShot + 1}`;
+    const shots = $("mbShots"); shots.innerHTML = ""; shots.hidden = n === 1;
+    for (let i = 0; i < n; i++) {
+      const b = document.createElement("button"); b.type = "button"; b.className = "mb-shot"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(i === browseShot));
+      b.innerHTML = `${memeImg(list[cur[i]], duo)}<small>Shot ${i + 1}</small>`; b.title = list[cur[i]].name;
+      b.addEventListener("click", () => { browseShot = i; renderBrowser(); }); shots.appendChild(b);
+    }
+    const fl = $("mbFilter"); fl.innerHTML = ""; fl.hidden = duo;
+    [["all", "All"], ["one", "1 person"], ["two", "2 people"]].forEach(([k, l]) => fl.appendChild(chip(l, browseFilter === k, () => { browseFilter = k; renderBrowser(); })));
+    const grid = $("mbGrid"); grid.innerHTML = "";
+    list.forEach((m, idx) => {
+      const two = duo || m.img.includes("/duo/");
+      if (!duo && (browseFilter === "one" && two || browseFilter === "two" && !two)) return;
+      const b = document.createElement("button"); b.type = "button"; b.className = "mtile"; b.setAttribute("aria-pressed", String(cur[browseShot] === idx));
+      const used = cur.indexOf(idx);
+      b.innerHTML = `<img src="${m.img}" alt="" loading="lazy" draggable="false"><span></span>${used >= 0 && used < n ? `<i>Shot ${used + 1}</i>` : ""}`;
+      b.querySelector("span").textContent = m.name; b.title = m.tip;
+      b.addEventListener("click", () => chooseMeme(idx)); grid.appendChild(b);
+    });
+  }
+  function chooseMeme(idx) {
+    const n = LAYOUTS[state.layout].n, list = picks[packKey()], other = list.indexOf(idx), was = browseShot;
+    if (other >= 0 && other !== was) list[other] = list[was]; // already on another shot: the two trade places
+    list[was] = idx; selPose = was;
+    if (was < n - 1) browseShot = was + 1;
+    changed();
+    setStatus(solo ? `Shot ${was + 1}: ${packList()[idx].name}.` : `Shot ${was + 1}: ${packList()[idx].name}. Your partner sees it too.`);
+    if (was === n - 1) closeBrowser(); else renderBrowser();
+  }
+  $("mbDone").addEventListener("click", closeBrowser);
+  mb.addEventListener("click", (e) => { if (e.target === mb) closeBrowser(); });
+  $("browseMemes").addEventListener("click", () => openBrowser(selPose));
+  $("memeBtn").addEventListener("click", () => openBrowser(selPose));
+
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
   let selPose = 0; // the pose shown beside the camera
   // inks: in Together your figure is drawn in black, your partner's in green
@@ -590,7 +646,7 @@
   function closeLook() { boothEl.classList.remove("look-open"); $("scrim").hidden = true; }
   ["lookBtn", "lookBtn2"].forEach((id) => $(id).addEventListener("click", openLook));
   $("closeLook").addEventListener("click", closeLook); $("scrim").addEventListener("click", closeLook);
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeLook(); });
+  document.addEventListener("keydown", (e) => { if (e.key !== "Escape") return; if (!mb.hidden) closeBrowser(); else closeLook(); });
   function enterSetup(mode) {
     setupMode = mode; solo = mode !== "host"; photosMode = false;
     state.duo = mode === "host"; poseFor = state.duo ? "duo" : "solo"; state.mirror = mode !== "photos";

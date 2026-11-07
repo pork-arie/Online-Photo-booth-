@@ -40,6 +40,18 @@
     { name: "Bye-bye", tip: "Big smile and a little wave.", img: "assets/memes/solo/21.jpg" },
     { name: "Rude monkey", tip: "Huge grin, cheeky finger. Optional!", img: "assets/memes/solo/22.jpg" },
     { name: "Stressed", tip: "Hand on your head. It's been a long day.", img: "assets/memes/solo/23.jpg" },
+    { name: "Smug chin", tip: "Hand on your chin, cool smirk.", img: "assets/memes/solo/24.jpg" },
+    { name: "Crying thumbs up", tip: "Teary eyes, thumbs up. It's fine.", img: "assets/memes/solo/25.jpg" },
+    { name: "Evil grin", tip: "Squint and grin like you're up to something.", img: "assets/memes/solo/26.jpg" },
+    { name: "Pointing at you", tip: "Point straight at the camera, mouth open.", img: "assets/memes/solo/27.jpg" },
+    { name: "Here's a rose", tip: "Hold out a flower, totally serious face.", img: "assets/memes/solo/28.jpg" },
+    { name: "Big heart", tip: "Make a big heart over your head.", img: "assets/memes/solo/29.jpg" },
+    { name: "Shy heart", tip: "Tiny heart with your fingers, shy smile.", img: "assets/memes/solo/30.jpg" },
+    { name: "Side-eye kid", tip: "Arms in, side-eye. Not convinced.", img: "assets/memes/solo/31.jpg" },
+    { name: "Peeking", tip: "Peek in from the side and do a little clap.", img: "assets/memes/solo/32.jpg" },
+    { name: "Turtle stare", tip: "Stand tall, blank stare at the camera.", img: "assets/memes/solo/33.jpg" },
+    { name: "Wait, what?", tip: "Eyebrows up, confused face.", img: "assets/memes/solo/34.jpg" },
+    { name: "Horrified", tip: "Eyes huge, mouth twisted. Pure horror.", img: "assets/memes/solo/35.jpg" },
   ];
   // Duo memes: two people in the picture. The person on the left copies the left one, and so on.
   const MEME_DUO = [
@@ -63,6 +75,9 @@
     { name: "Anime clash", tip: "Face each other and point. Final battle.", img: "assets/memes/duo/18.jpg" },
     { name: "Besties", tip: "Arm around each other, flex and grin.", img: "assets/memes/duo/19.jpg" },
     { name: "Too cool", tip: "Arms crossed, no smiling.", img: "assets/memes/duo/20.jpg" },
+    { name: "Hand on shoulder", tip: "One puts a hand on the other's shoulder. Both serious.", img: "assets/memes/duo/21.jpg" },
+    { name: "Victory scream", tip: "Fists up, both screaming.", img: "assets/memes/duo/22.jpg" },
+    { name: "Both shocked", tip: "Both stare at the camera, totally shocked.", img: "assets/memes/duo/23.jpg" },
   ];
   // Solo has every meme: the one-person pictures, then the two-person ones (copy one side, or grab a friend).
   const MEME = [...MEME_SOLO, ...MEME_DUO];

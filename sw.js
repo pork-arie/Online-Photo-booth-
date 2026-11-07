@@ -1,6 +1,6 @@
 // Keeps Flashbulb working offline after the first visit.
 // Pages are fetched from the network first (so updates arrive) and fall back to the saved copy.
-const CACHE = "flashbulb-v8";
+const CACHE = "flashbulb-v9";
 const CORE = [
   "./", "./index.html", "./solo/", "./solo/index.html", "./config.js",
   "./css/booth.css", "./js/looks.js", "./js/designs.js", "./js/poses.js", "./js/stickers.js", "./js/booth.js",
@@ -32,6 +32,18 @@ const CORE = [
   "./assets/memes/solo/21.jpg",
   "./assets/memes/solo/22.jpg",
   "./assets/memes/solo/23.jpg",
+  "./assets/memes/solo/24.jpg",
+  "./assets/memes/solo/25.jpg",
+  "./assets/memes/solo/26.jpg",
+  "./assets/memes/solo/27.jpg",
+  "./assets/memes/solo/28.jpg",
+  "./assets/memes/solo/29.jpg",
+  "./assets/memes/solo/30.jpg",
+  "./assets/memes/solo/31.jpg",
+  "./assets/memes/solo/32.jpg",
+  "./assets/memes/solo/33.jpg",
+  "./assets/memes/solo/34.jpg",
+  "./assets/memes/solo/35.jpg",
   "./assets/memes/duo/01.jpg",
   "./assets/memes/duo/02.jpg",
   "./assets/memes/duo/03.jpg",
@@ -52,6 +64,9 @@ const CORE = [
   "./assets/memes/duo/18.jpg",
   "./assets/memes/duo/19.jpg",
   "./assets/memes/duo/20.jpg",
+  "./assets/memes/duo/21.jpg",
+  "./assets/memes/duo/22.jpg",
+  "./assets/memes/duo/23.jpg",
   "./assets/stickers/fluent/billed_cap.png",
   "./assets/stickers/fluent/blossom.png",
   "./assets/stickers/fluent/cherry_blossom.png",
