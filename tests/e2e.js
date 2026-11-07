@@ -135,7 +135,9 @@ async function makeFaceVideo(browser) {
   check('Phone Together: each camera gets half the screen', bt >= 160, `${bt}px per camera`);
   await B.evaluate(() => window.scrollTo(0, 0)); await B.waitForTimeout(200); await B.screenshot({ path: OUT + '/phone-together.png' });
   check('Partner sees Partner on the left, You on the right', (await B.locator('#poseRail .rail-card').first().locator('.who2 i').allTextContents()).join('|') === 'Partner|You');
-  check('Both see the same duo poses', (await A.locator('#poseRail .rail-card b').allTextContents()).join() === (await B.locator('#poseRail .rail-card b').allTextContents()).join());
+  const railNames = (p) => p.evaluate(() => [...document.querySelectorAll('#poseRail .rail-card')].map((c) => c.title).join());
+  check('Both see the same duo poses', (await railNames(A)) === (await railNames(B)) && (await railNames(A)).length > 0);
+  check('Pose cards beside the camera show no name', (await A.locator('#poseRail .rail-card b').count()) === 0);
   await A.locator('#poseRail').screenshot({ path: OUT + '/duo-rail-host.png' });
   await A.click('#tabBtn-poses'); await A.locator('#poseFor .chip', { hasText: 'Solo' }).click(); await A.waitForTimeout(800);
   check('Switching to Solo poses syncs to the partner', (await B.locator('#poseRail .rail-card.duo').count()) === 0 && (await B.locator('#poseRail .rail-card').count()) === 4);
@@ -145,7 +147,7 @@ async function makeFaceVideo(browser) {
   // synced 4-shot session started by the partner
   await B.click('#shootBtn');
   await A.waitForTimeout(1000);
-  const posA = await A.locator('#poseRail [aria-pressed=true] b').textContent().catch(() => ''), posB = await B.locator('#poseRail [aria-pressed=true] b').textContent().catch(() => '-');
+  const posA = await A.locator('#poseRail [aria-pressed=true]').getAttribute('title').catch(() => ''), posB = await B.locator('#poseRail [aria-pressed=true]').getAttribute('title').catch(() => '-');
   check('Both see the same pose beside the camera', posA === posB && posA !== '', posA);
   check('No pose pop-up covers the camera', (await A.locator('.pose-pop').count()) === 0);
   await A.waitForTimeout(2300);
@@ -278,7 +280,7 @@ async function makeFaceVideo(browser) {
   check('Picking a pose in the list shows it beside the camera', (await J.locator('#poseRail .rail-card').nth(2).getAttribute('aria-pressed')) === 'true');
   await J.click('#tabBtn-look'); await closeLook(J);
   await J.locator('#poseRail .rail-card').nth(3).click();
-  check('Tapping a pose beside the camera picks it', (await J.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && (await J.locator('#poseList .pose-item.sel b').textContent()) === (await J.locator('#poseRail .rail-card').nth(3).locator('b').textContent()));
+  check('Tapping a pose beside the camera picks it', (await J.locator('#poseRail .rail-card').nth(3).getAttribute('aria-pressed')) === 'true' && (await J.locator('#poseList .pose-item.sel b').textContent()) === (await J.locator('#poseRail .rail-card').nth(3).getAttribute('title')));
   await J.screenshot({ path: OUT + '/pose-rail.png' });
   await J.click('#shootBtn');
   await J.waitForTimeout(1000);
@@ -292,6 +294,12 @@ async function makeFaceVideo(browser) {
   check('The print drops out of the booth slot', (await view(J)) === 'result' && await J.evaluate(() => document.getElementById('tray').contains(document.getElementById('printBox')) && document.getElementById('printBox').classList.contains('dispense')));
   await J.waitForTimeout(1200); await J.screenshot({ path: OUT + '/result-dispense.png' });
   await J.waitForTimeout(2000);
+  const printTexts = await J.evaluate(() => { const t = [], orig = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (x, ...a) { if (this.canvas.id === 'strip') t.push(String(x)); return orig.call(this, x, ...a); };
+    const el = document.getElementById('showDate'); el.checked = !el.checked; el.dispatchEvent(new Event('change')); el.checked = !el.checked; el.dispatchEvent(new Event('change'));
+    CanvasRenderingContext2D.prototype.fillText = orig;
+    const names = [...document.querySelectorAll('#poseRail .rail-card')].map((c) => c.title); return { t, names }; });
+  check('The print has no SHOT labels or pose names', printTexts.t.length > 0 && !printTexts.t.some((x) => /SHOT/.test(x.replace(/\u200a/g, '')) || printTexts.names.includes(x)), printTexts.t.slice(0, 6).join(' | '));
   check('Just me takes 4 photos', (await J.evaluate(() => document.querySelectorAll('#thumbs img').length)) === 4);
   const jdl = J.waitForEvent('download', { timeout: 5000 }).catch(() => null);
   await J.click('#saveBtn'); const jd = await jdl;

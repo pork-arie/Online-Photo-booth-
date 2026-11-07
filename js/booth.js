@@ -110,13 +110,13 @@
   }
   function drawPose(r, i, frame, nameSize) {
     const key = packKey(), idx = picks[key][i]; if (idx == null) return;
-    const duo = poseFor === "duo", item = packList(key)[idx], name = poseMode === "meme" ? item.name : item[duo ? 2 : 1];
+    const duo = poseFor === "duo", item = packList(key)[idx];
     ctx.save();
     if (frame.theme) { ctx.fillStyle = frame.bg; ctx.globalAlpha = .9; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill(); }
     ctx.fillStyle = frame.ink; ctx.globalAlpha = .05;
     ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.fill();
     ctx.globalAlpha = 1;
-    const pad = 14, textH = nameSize * 2.6, aw = r.w - pad * 2, ah = r.h - textH - pad;
+    const pad = 14, aw = r.w - pad * 2, ah = r.h - pad * 2; // just the pose: no shot number or name on the print
     const cx = r.x + r.w / 2, cy = r.y + pad + ah / 2;
     if (poseMode === "meme") {
       const im = poseArt(idx, frame, duo);
@@ -129,13 +129,6 @@
       ctx.font = `${Math.round(size)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
       ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(text, cx, cy);
     }
-    ctx.fillStyle = frame.ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    ctx.globalAlpha = .55; ctx.font = `600 ${Math.round(nameSize * .5)}px "Urbanist", sans-serif`;
-    ctx.fillText(`SHOT ${i + 1}`.split("").join(String.fromCharCode(8202)), r.x + r.w / 2, r.y + r.h - pad - nameSize * 1.25);
-    ctx.globalAlpha = 1; let size = nameSize;
-    const setF = () => { ctx.font = `700 ${size}px "Comfortaa", "Century Gothic", sans-serif`; };
-    setF(); while (ctx.measureText(name).width > r.w - 20 && size > 12) { size -= 1; setF(); }
-    ctx.fillText(name, r.x + r.w / 2, r.y + r.h - pad - 4);
     ctx.restore();
   }
 
@@ -272,7 +265,7 @@
       const { art, name, duo } = poseInfo(i, true);
       const b = document.createElement("button"); b.type = "button"; b.className = "rail-card" + (duo ? " duo" : ""); b.setAttribute("aria-pressed", String(i === selPose));
       const who = !duo ? "" : solo ? `<span class="who2"><i>Left</i><i>Right</i></span>` : `<span class="who2"><i${mySide === "A" ? ' class="me"' : ""}>${mySide === "A" ? "You" : "Partner"}</i><i${mySide === "B" ? ' class="me"' : ""}>${mySide === "B" ? "You" : "Partner"}</i></span>`;
-      b.innerHTML = `${art}${who}<small>Shot ${i + 1}</small><b></b>`; b.querySelector("b").textContent = name;
+      b.innerHTML = `${art}${who}<small>Shot ${i + 1}</small>`; b.title = name;
       b.setAttribute("aria-label", `Shot ${i + 1}: ${name}`);
       b.addEventListener("click", () => pickPose(i));
       rail.appendChild(b);
