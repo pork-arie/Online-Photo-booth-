@@ -120,9 +120,10 @@
     const cx = r.x + r.w / 2, cy = r.y + pad + ah / 2;
     if (poseMode === "meme") {
       const im = poseArt(idx, frame, duo);
-      if (im) { // the meme picture, whole, with rounded corners
-        const iw = im.naturalWidth || 100, ih = im.naturalHeight || 100, s = Math.min(aw / iw, ah / ih), w = iw * s, h = ih * s, x = cx - w / 2, y = cy - h / 2;
-        ctx.save(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, 10) : ctx.rect(x, y, w, h); ctx.clip(); ctx.drawImage(im, x, y, w, h); ctx.restore();
+      if (im) { // the meme fills the whole side panel, same height as the photo (cropped to fit, kept toward the top for faces)
+        const iw = im.naturalWidth || 100, ih = im.naturalHeight || 100, s = Math.max(r.w / iw, r.h / ih), w = iw * s, h = ih * s;
+        const x = r.x + (r.w - w) / 2, y = r.y + (r.h - h) * .3;
+        ctx.save(); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(r.x, r.y, r.w, r.h, 16) : ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.drawImage(im, x, y, w, h); ctx.restore();
       }
     } else {
       const text = duo ? item[0] + item[1] : item[0], size = duo ? Math.min(ah * .55, aw * .38) : Math.min(ah, aw) * .62;
