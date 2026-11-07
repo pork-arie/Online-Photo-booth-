@@ -3,15 +3,17 @@ const { chromium, webkit } = require('playwright');
 const SITE = process.argv[2] || 'https://pork-arie.github.io/Online-Photo-booth-/';
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const fakeCam = () => { // WebKit has no fake camera: give it a moving canvas and a tone as the "camera" and "mic"
-  const md = navigator.mediaDevices || (navigator.mediaDevices = {});
-  md.enumerateDevices = async () => [{ kind: 'videoinput', deviceId: 'fake', label: 'Fake', groupId: '' }, { kind: 'audioinput', deviceId: 'fakea', label: 'Fake mic', groupId: '' }];
-  md.getUserMedia = async (c) => {
+  const fakeGUM = async (c) => {
     const cv = document.createElement('canvas'); cv.width = 640; cv.height = 480; const g = cv.getContext('2d'); let t = 0;
     setInterval(() => { t++; g.fillStyle = `hsl(${t * 5 % 360},70%,50%)`; g.fillRect(0, 0, 640, 480); g.fillStyle = '#fff'; g.fillRect(100 + (t * 7) % 400, 200, 80, 80); }, 50);
     const s = cv.captureStream(20);
     if (c && c.audio) { try { const ac = new AudioContext(), o = ac.createOscillator(), d = ac.createMediaStreamDestination(); o.connect(d); o.start(); d.stream.getAudioTracks().forEach((tr) => s.addTrack(tr)); } catch (e) {} }
     return s;
   };
+  const fakeEnum = async () => [{ kind: 'videoinput', deviceId: 'fake', label: 'Fake', groupId: '' }, { kind: 'audioinput', deviceId: 'fakea', label: 'Fake mic', groupId: '' }];
+  const proto = window.MediaDevices && MediaDevices.prototype;
+  if (proto) { Object.defineProperty(proto, 'getUserMedia', { configurable: true, writable: true, value: fakeGUM }); Object.defineProperty(proto, 'enumerateDevices', { configurable: true, writable: true, value: fakeEnum }); }
+  if (!navigator.mediaDevices) Object.defineProperty(navigator, 'mediaDevices', { configurable: true, value: { getUserMedia: fakeGUM, enumerateDevices: fakeEnum, addEventListener() {} } });
 };
 (async () => {
   const W = await webkit.launch(), C = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] });
@@ -39,6 +41,7 @@ const fakeCam = () => { // WebKit has no fake camera: give it a moving canvas an
     await hctx.addInitScript(fakeCam); await hctx.addInitScript(iceSpy);
     const H = await hctx.newPage(); watch('IPAD-HOST', H);
     await H.goto(SITE, { waitUntil: 'networkidle' }); log('IPAD-HOST loaded', JSON.stringify(await state(H)));
+    log('IPAD-HOST camera test', await H.evaluate(async () => { try { const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }); return 'ok ' + s.getTracks().map((t) => t.kind).join(','); } catch (e) { return 'fail ' + e.name + ' ' + e.message; } }));
     await H.click('#startBtn'); await H.click('#startCamBtn');
     for (let k = 0; k < 30 && (await state(H)).view !== 'shoot'; k++) await H.waitForTimeout(1000);
     log('IPAD-HOST after Open my booth', JSON.stringify(await state(H)));
