@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: [tests/live-check.js, tests/turn-check.js, .github/workflows/live-check.yml]
+    paths: [tests/live-check.js, tests/turn-check.js, tests/webkit-check.js, .github/workflows/live-check.yml]
 
 jobs:
   live:
@@ -20,9 +20,12 @@ jobs:
         with:
           node-version: 22
       - run: npm install --no-package-lock
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - name: Open a booth and join it on the live site
         run: node live-check.js
+      - name: Open the booth in WebKit (Safari on iPad) and join from Chrome
+        if: always()
+        run: node webkit-check.js
       - name: Try free relay servers
         if: always()
         run: node turn-check.js
