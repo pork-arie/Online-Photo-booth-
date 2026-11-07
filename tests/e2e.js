@@ -148,9 +148,11 @@ async function makeFaceVideo(browser) {
   check('Back to Duo on both', (await B.locator('#poseRail .rail-card.duo').count()) === 4);
   // browse memes: the partner picks a duo meme for shot 1, and the host sees it
   await B.click('#memeBtn'); await B.waitForSelector('#memeBrowser:not([hidden])', { timeout: 3000 });
-  check('Together: Browse memes shows only the two-person memes', (await B.locator('#mbGrid .mtile').count()) === 23 && await B.isHidden('#mbFilter'));
+  check('Together: Browse memes has the two-person memes first, then the solo ones', (await B.locator('#mbGrid .mtile').count()) === 58 && await B.isVisible('#mbFilter') && (await B.locator('#mbGrid .mtile span').first().textContent()) === 'Leg heart');
   await B.locator('#mbShots .mb-shot').first().click();
-  await B.locator('#mbGrid .mtile', { hasText: 'Victory scream' }).click(); await B.click('#mbDone'); await A.waitForTimeout(800);
+  await B.locator('#mbGrid .mtile', { hasText: 'Victory scream' }).click();
+  await B.locator('#mbGrid .mtile', { hasText: 'Crying thumbs up' }).click(); await B.click('#mbDone'); await A.waitForTimeout(800);
+  check('Together can use solo memes too (you both copy it)', (await A.locator('#poseRail .rail-card').nth(1).getAttribute('title')) === 'Crying thumbs up');
   check('A meme picked in the browser syncs to the partner', (await A.locator('#poseRail .rail-card').first().getAttribute('title')) === 'Victory scream');
 
   // synced 4-shot session started by the partner
@@ -205,6 +207,14 @@ async function makeFaceVideo(browser) {
   await G2.waitForFunction(() => document.getElementById('booth').dataset.view === 'shoot' && !document.getElementById('booth').hidden, null, { timeout: 25000 }).catch(() => {});
   await H2.waitForFunction(() => document.getElementById('pillText').textContent === 'Connected', null, { timeout: 10000 }).catch(() => {});
   check('When the host comes back, the partner gets in by itself', (await view(G2)) === 'shoot' && (await H2.textContent('#pillText')) === 'Connected' && (await G2.textContent('#pillText')) === 'Connected', await G2.textContent('#inviteNote'));
+  // a phone where starting the video call fails (as on some iPads) still gets into the booth
+  await G2.click('#leaveBtn'); await H2.waitForTimeout(1500);
+  const G3 = await mk('NoCallGuest', { width: 820, height: 1180 });
+  await G3.addInitScript(() => { let P; Object.defineProperty(window, 'Peer', { configurable: true, get: () => P, set: (v) => { v.prototype.call = () => { throw new Error('call failed'); }; P = v; } }); });
+  await G3.goto('http://localhost:8080/index.html' + q + '&join=' + code2); await G3.click('#inviteJoin');
+  await G3.waitForFunction(() => document.getElementById('booth').dataset.view === 'shoot' && !document.getElementById('booth').hidden, null, { timeout: 20000 }).catch(() => {});
+  check("Joining still works when the video call can't start (no stuck Connecting)", (await view(G3)) === 'shoot' && (await G3.textContent('#pillText')) === 'Connected', await G3.textContent('#inviteNote'));
+  await G3.close();
   await H2.close(); await G2.close();
   // ---- Use my photos: built into the main page ----
   const S = await mk('Photos', { width: 1200, height: 900 });
@@ -298,7 +308,7 @@ async function makeFaceVideo(browser) {
   check('↻ swaps a pose', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
   await J.waitForFunction(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 5000 }).catch(() => {});
   check('Meme poses are real meme pictures (no drawings)', (await J.locator('#poseRail img.meme').count()) === 4 && (await J.locator('#poseRail svg').count()) === 0 && await J.evaluate(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 100)));
-  check('Solo memes include the two-person pictures too', await J.evaluate(() => window.FB.MEME.length === 58 && window.FB.MEME.filter((m) => m.img.includes('/duo/')).length === 23 && window.FB.MEME_DUO.length === 23));
+  check('Solo memes include the two-person pictures too', await J.evaluate(() => window.FB.MEME.length === 58 && window.FB.MEME.filter((m) => m.img.includes('/duo/')).length === 23 && window.FB.MEME_DUO.length === 58));
   check('The meme pictures are printed beside the photos', await J.evaluate(() => { const c = document.getElementById('strip'), g = c.getContext('2d'), w = c.width; const d = g.getImageData(Math.round(w * .7), 0, Math.round(w * .25), c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4 * 7) seen.add((d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4)); return seen.size > 300; }));
   check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
   await J.locator('#poseList .pose-sel').nth(2).click();

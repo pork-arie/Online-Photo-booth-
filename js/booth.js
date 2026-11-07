@@ -1,7 +1,7 @@
 // Flashbulb booth: camera, connection, shooting, print, exports.
 (() => {
   const { DESIGNS, DESIGN_FONTS } = window.FB;
-  const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, MEME_DUO, CLASSIC_DUO, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
+  const { LAYOUTS, FILTERS, FRAMES, applyFilter, rng, star, heart, THEMES, seasonNow, paintBackground, CLASSIC, MEME, MEME_DUO, MEME_PAIRS, CLASSIC_DUO, FL, FX, ANIM, imgCache, img, NEEDS, sheet, preloadSticker, EMOJI_FONT, emoji, heartPath, BOX, wear, anim, STICKERS, NI } = window.FB;
   const state = {
     photos: [null, null, null, null], photosB: [null, null, null, null], samples: [], usingSamples: false, hideSampleTag: true, noPoses: false,
     layout: "strip", filter: "film", frame: 0, caption: "Miles apart", showDate: true, mirror: true, capHl: true, theme: "none", duo: true, design: "modern",
@@ -191,7 +191,7 @@
   function setStatus(msg, err) { ["status", "resultStatus"].forEach((id) => { const s = $(id); if (s) { s.textContent = msg || ""; s.classList.toggle("err", !!err); } }); }
   function setPill(mode, text) { const p = $("pill"); p.hidden = false; p.className = "pill" + (mode ? " " + mode : ""); $("pillText").textContent = text; }
   function shuffle(n, len) { const a = Array.from({ length: len }, (_, i) => i); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a.slice(0, n); }
-  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length);
+  picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_PAIRS.length);
 
   /* ---------- settings UI ---------- */
   function chip(label, pressed, onClick, swatch) {
@@ -247,15 +247,15 @@
     const shots = $("mbShots"); shots.innerHTML = ""; shots.hidden = n === 1;
     for (let i = 0; i < n; i++) {
       const b = document.createElement("button"); b.type = "button"; b.className = "mb-shot"; b.setAttribute("role", "tab"); b.setAttribute("aria-selected", String(i === browseShot));
-      b.innerHTML = `${memeImg(list[cur[i]], duo)}<small>Shot ${i + 1}</small>`; b.title = list[cur[i]].name;
+      b.innerHTML = `${memeImg(list[cur[i]])}<small>Shot ${i + 1}</small>`; b.title = list[cur[i]].name;
       b.addEventListener("click", () => { browseShot = i; renderBrowser(); }); shots.appendChild(b);
     }
-    const fl = $("mbFilter"); fl.innerHTML = ""; fl.hidden = duo;
+    const fl = $("mbFilter"); fl.innerHTML = "";
     [["all", "All"], ["one", "1 person"], ["two", "2 people"]].forEach(([k, l]) => fl.appendChild(chip(l, browseFilter === k, () => { browseFilter = k; renderBrowser(); })));
     const grid = $("mbGrid"); grid.innerHTML = "";
     list.forEach((m, idx) => {
-      const two = duo || m.img.includes("/duo/");
-      if (!duo && (browseFilter === "one" && two || browseFilter === "two" && !two)) return;
+      const two = m.img.includes("/duo/");
+      if (browseFilter === "one" && two || browseFilter === "two" && !two) return;
       const b = document.createElement("button"); b.type = "button"; b.className = "mtile"; b.setAttribute("aria-pressed", String(cur[browseShot] === idx));
       const used = cur.indexOf(idx);
       b.innerHTML = `<img src="${m.img}" alt="" loading="lazy" draggable="false"><span></span>${used >= 0 && used < n ? `<i>Shot ${used + 1}</i>` : ""}`;
@@ -284,7 +284,7 @@
   function poseInfo(i, colored) {
     const key = packKey(), item = packList(key)[picks[key][i]];
     if (poseFor === "duo") {
-      if (poseMode === "meme") return { art: memeImg(item, true), name: item.name, tip: item.tip, duo: true };
+      if (poseMode === "meme") return { art: memeImg(item), name: item.name, tip: item.tip, duo: true };
       return { art: `<span class="emo duo" aria-hidden="true">${item[0]}${item[1]}</span>`, name: item[2], tip: item[3], duo: true };
     }
     if (poseMode === "meme") return { art: memeImg(item), name: item.name, tip: item.tip };
@@ -387,7 +387,7 @@
   $("caption").addEventListener("input", (e) => { state.caption = e.target.value; $("capCount").textContent = `${state.caption.length}/28`; render(); sendSettingsSoon(); });
   $("capHl").addEventListener("change", (e) => { state.capHl = e.target.checked; changed(); });
   $("posePrint").addEventListener("change", (e) => { posePrint = e.target.checked; changed(); });
-  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_DUO.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
+  $("newPoses").addEventListener("click", () => { picks.classic = shuffle(4, CLASSIC.length); picks.meme = shuffle(4, MEME.length); picks.classicDuo = shuffle(4, CLASSIC_DUO.length); picks.memeDuo = shuffle(4, MEME_PAIRS.length); changed(); setStatus(solo ? "New poses." : "New poses for both of you."); });
 
   function renderThumbs() {
     const n = LAYOUTS[state.layout].n, box = $("thumbs"); box.innerHTML = "";
@@ -767,15 +767,14 @@
     }
     if (peer && peer.disconnected && !peer.destroyed) { try { peer.reconnect(); } catch (e) {} }
     if (conn && !conn.open) { const old = conn; conn = null; try { old.close(); } catch (e) {} } // drop the knock that went unanswered
-    const dc = guestConnect();
-    dc.on("open", () => { clearTimeout(knockT); if (!inBooth()) enterBooth(); });
     clearTimeout(knockT); knockT = setTimeout(() => { if (!inBooth() && (!conn || !conn.open)) knock(); }, 10000); // no answer yet: try a fresh connection
+    try { guestConnect(); } catch (e) { /* try again on the next knock */ } // getting in happens when the link opens (see wireConn)
   }
   function guestConnect() {
     const dc = peer.connect(PREFIX + code, { reliable: true });
     wireConn(dc);
     if (call) { try { call.close(); } catch (e) {} }
-    call = peer.call(PREFIX + code, localStream); wireCall(call);
+    try { call = peer.call(PREFIX + code, localStream); if (call) wireCall(call); } catch (e) { call = null; } // video can follow later; the link alone gets you in
     return dc;
   }
   // If the link to the partner drops, the person who joined calls back automatically.
@@ -803,6 +802,7 @@
   function wireConn(c) {
     conn = c;
     c.on("open", () => {
+      if (mySide === "B" && !inBooth()) { clearTimeout(knockT); enterBooth(); } // joined: into the booth (on every phone, iPad included)
       setPill("on", "Connected"); $("shootBtn").disabled = false;
       setStatus(reconnectTries ? "Reconnected!" : mySide === "A" ? "Your partner is here. Say hi, then tap Start when you're both ready." : "You're in! Say hi, then tap Start when you're both ready.");
       reconnectTries = 0;
@@ -883,7 +883,7 @@
   function poseCardHTML(i, n) {
     const head = `<small>Shot ${i + 1} of ${n}</small>`;
     if (poseMode === "off") return `<div class="pose-pop">${head}<b>Strike a pose!</b></div>`;
-    if (poseMode === "meme") { const f = packList()[picks[packKey()][i]]; return `<div class="pose-pop"><div class="art">${memeImg(f, poseFor === "duo")}</div>${head}<b>${f.name}</b></div>`; }
+    if (poseMode === "meme") { const f = packList()[picks[packKey()][i]]; return `<div class="pose-pop"><div class="art">${memeImg(f)}</div>${head}<b>${f.name}</b></div>`; }
     const c = CLASSIC[picks.classic[i]]; return `<div class="pose-pop"><div class="art"><span class="emo">${c[0]}</span></div>${head}<b>${c[1]}</b></div>`;
   }
   async function runSession(local, nRemote) {

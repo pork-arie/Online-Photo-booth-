@@ -54,7 +54,7 @@
     { name: "Horrified", tip: "Eyes huge, mouth twisted. Pure horror.", img: "assets/memes/solo/35.jpg" },
   ];
   // Duo memes: two people in the picture. The person on the left copies the left one, and so on.
-  const MEME_DUO = [
+  const MEME_PAIRS = [
     { name: "Leg heart", tip: "Make a heart with your hands and your legs.", img: "assets/memes/duo/01.jpg" },
     { name: "Finger guns", tip: "Back to back, finger guns up. Action movie face.", img: "assets/memes/duo/02.jpg" },
     { name: "Presenting…", tip: "One presents, the other strikes a pose.", img: "assets/memes/duo/03.jpg" },
@@ -79,8 +79,10 @@
     { name: "Victory scream", tip: "Fists up, both screaming.", img: "assets/memes/duo/22.jpg" },
     { name: "Both shocked", tip: "Both stare at the camera, totally shocked.", img: "assets/memes/duo/23.jpg" },
   ];
-  // Solo has every meme: the one-person pictures, then the two-person ones (copy one side, or grab a friend).
-  const MEME = [...MEME_SOLO, ...MEME_DUO];
+  // Every list has every meme. Solo: the one-person pictures first, then the two-person ones (copy one side, or grab a friend).
+  // Duo: the two-person pictures first, then the one-person ones (you both copy the same pose).
+  const MEME = [...MEME_SOLO, ...MEME_PAIRS];
+  const MEME_DUO = [...MEME_PAIRS, ...MEME_SOLO];
   const CLASSIC_DUO = [
     ["👉", "👈", "Point at each other", "Both point to the middle."], ["🫶", "🫶", "Big heart", "Both make heart hands."],
     ["🙌", "🙌", "High five", "Reach to the middle."], ["😘", "🥰", "Kiss & blush", "One blows a kiss, the other blushes."],
@@ -89,5 +91,5 @@
     ["🤫", "👂", "Secret", "One whispers, one listens."], ["🤔", "💡", "Big idea", "One thinks, the other gets it."],
   ];
 
-  Object.assign(window.FB = window.FB || {}, { CLASSIC, MEME, MEME_DUO, CLASSIC_DUO });
+  Object.assign(window.FB = window.FB || {}, { CLASSIC, MEME, MEME_DUO, MEME_PAIRS, CLASSIC_DUO });
 })();
