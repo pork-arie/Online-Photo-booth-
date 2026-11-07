@@ -16,7 +16,7 @@
     ["🙈", "Too shy", "Cover your face, peek through your fingers."],
   ];
   // Meme poses: real meme pictures (assets/memes). Copy the pose in the picture.
-  const MEME = [
+  const MEME_SOLO = [
     { name: "Heart hands", tip: "Make a heart with your hands. Sweet little smile.", img: "assets/memes/solo/01.jpg" },
     { name: "Time out", tip: "Make a T with your hands. Dead serious.", img: "assets/memes/solo/02.jpg" },
     { name: "Too pleased", tip: "Hands behind your head, eyes shut, big laugh.", img: "assets/memes/solo/03.jpg" },
@@ -64,6 +64,8 @@
     { name: "Besties", tip: "Arm around each other, flex and grin.", img: "assets/memes/duo/19.jpg" },
     { name: "Too cool", tip: "Arms crossed, no smiling.", img: "assets/memes/duo/20.jpg" },
   ];
+  // Solo has every meme: the one-person pictures, then the two-person ones (copy one side, or grab a friend).
+  const MEME = [...MEME_SOLO, ...MEME_DUO];
   const CLASSIC_DUO = [
     ["👉", "👈", "Point at each other", "Both point to the middle."], ["🫶", "🫶", "Big heart", "Both make heart hands."],
     ["🙌", "🙌", "High five", "Reach to the middle."], ["😘", "🥰", "Kiss & blush", "One blows a kiss, the other blushes."],

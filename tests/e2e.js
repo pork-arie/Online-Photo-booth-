@@ -271,6 +271,7 @@ async function makeFaceVideo(browser) {
   check('↻ swaps a pose', (await J.locator('#poseList .pose-item b').first().textContent()) !== firstPose);
   await J.waitForFunction(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 0), null, { timeout: 5000 }).catch(() => {});
   check('Meme poses are real meme pictures (no drawings)', (await J.locator('#poseRail img.meme').count()) === 4 && (await J.locator('#poseRail svg').count()) === 0 && await J.evaluate(() => [...document.querySelectorAll('#poseRail img.meme')].every((i) => i.complete && i.naturalWidth > 100)));
+  check('Solo memes include the two-person pictures too', await J.evaluate(() => window.FB.MEME.length === 43 && window.FB.MEME.filter((m) => m.img.includes('/duo/')).length === 20 && window.FB.MEME_DUO.length === 20));
   check('The meme pictures are printed beside the photos', await J.evaluate(() => { const c = document.getElementById('strip'), g = c.getContext('2d'), w = c.width; const d = g.getImageData(Math.round(w * .7), 0, Math.round(w * .25), c.height).data; const seen = new Set(); for (let i = 0; i < d.length; i += 4 * 7) seen.add((d[i] >> 4) + ',' + (d[i + 1] >> 4) + ',' + (d[i + 2] >> 4)); return seen.size > 300; }));
   check('Poses show beside the camera', await J.isVisible('#poseRail') && (await J.locator('#poseRail .rail-card').count()) === 4);
   await J.locator('#poseList .pose-sel').nth(2).click();

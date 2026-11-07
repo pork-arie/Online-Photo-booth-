@@ -230,7 +230,7 @@
   function changed(fromRemote) { buildUI(); render(); renderThumbs(); if (!fromRemote) sendSettings(); }
   let selPose = 0; // the pose shown beside the camera
   // inks: in Together your figure is drawn in black, your partner's in green
-  const memeImg = (item, duo) => `<img class="meme${duo ? " duo" : ""}" src="${item.img}" alt="" draggable="false">`;
+  const memeImg = (item, duo) => `<img class="meme${duo || item.img.includes("/duo/") ? " duo" : ""}" src="${item.img}" alt="" draggable="false">`;
   function poseInfo(i, colored) {
     const key = packKey(), item = packList(key)[picks[key][i]];
     if (poseFor === "duo") {
