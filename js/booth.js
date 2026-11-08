@@ -609,7 +609,10 @@
   let iceCache = null;
   async function iceServers() {
     if (iceCache) return iceCache;
-    const list = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" }];
+    // PeerJS's own free servers (its defaults): a direct-path finder and two relays, so phones on different
+    // networks can still reach each other. Setting iceServers replaces the defaults, so they're listed here.
+    const list = [{ urls: "stun:stun.l.google.com:19302" }, { urls: "stun:stun1.l.google.com:19302" },
+      { urls: ["turn:eu-0.turn.peerjs.com:3478", "turn:us-0.turn.peerjs.com:3478"], username: "peerjs", credential: "peerjsp" }];
     (Array.isArray(CFG.iceServers) ? CFG.iceServers : []).forEach((x) => { if (x && x.urls) list.push(x); });
     if (params.get("turn")) list.push({ urls: params.get("turn"), username: params.get("turnuser") || "", credential: params.get("turnpass") || "" });
     if (CFG.turnCredentialsUrl) {

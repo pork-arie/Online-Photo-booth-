@@ -1,6 +1,9 @@
 // Tries free public relay (TURN) servers: two connections that may ONLY use the relay, so success means the relay works.
 const { chromium } = require('playwright');
 const CANDIDATES = [
+  { name: 'peerjs eu-0', urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+  { name: 'peerjs us-0', urls: 'turn:us-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+  { name: 'peerjs eu-0 tcp', urls: 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', username: 'peerjs', credential: 'peerjsp' },
   { name: 'openrelay 80', urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
   { name: 'openrelay 443', urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   { name: 'openrelay 443 tcp', urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
